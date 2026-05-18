@@ -10,16 +10,14 @@ require('dotenv').config();
 const app = express();
 
 // ─── Sécurité — Headers HTTP ──────────────────────────────────────────────────
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// ─── CORS ────────────────────────────────────────────────────────────────────
+// ─── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({ origin: '*', credentials: false }));
 
-// ─── Rate Limiting global ─────────────────────────────────────────────────────
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
 const limiterGlobal = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 200,
   message: { success: false, message: 'Trop de requêtes, réessayez dans 15 minutes' },
   standardHeaders: true,
@@ -27,20 +25,17 @@ const limiterGlobal = rateLimit({
 });
 app.use('/api', limiterGlobal);
 
-// ─── Rate Limiting strict sur l'authentification ──────────────────────────────
 const limiterAuth = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { success: false, message: 'Trop de tentatives de connexion, réessayez dans 15 minutes' },
-  standardHeaders: true,
-  legacyHeaders: false,
+  message: { success: false, message: 'Trop de tentatives de connexion' },
 });
 app.use('/api/auth/connexion', limiterAuth);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(mongoSanitize()); // Protection injection NoSQL
+app.use(mongoSanitize());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -54,14 +49,11 @@ app.use('/api/ventes',        require('./routes/ventes'));
 app.use('/api/utilisateurs',  require('./routes/utilisateurs'));
 app.use('/api/stats',         require('./routes/stats'));
 app.use('/api/previsions',    require('./routes/previsions'));
+app.use('/api/emails',        require('./routes/emails'));
 
 // ─── Santé ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({
-    status:    'ok',
-    timestamp: new Date().toISOString(),
-    env:       process.env.NODE_ENV,
-  });
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
 });
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
@@ -72,28 +64,12 @@ app.use((req, res) => {
 // ─── Erreurs globales ─────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('❌ Erreur :', err.message);
-
-  // Erreur CORS
-  if (err.message === 'Non autorisé par CORS') {
-    return res.status(403).json({ success: false, message: 'Accès refusé' });
-  }
-
-  // Erreur JWT
-  if (err.name === 'JsonWebTokenError') {
-    return res.status(401).json({ success: false, message: 'Token invalide' });
-  }
-
-  // Erreur Mongoose validation
   if (err.name === 'ValidationError') {
-    const messages = Object.values(err.errors).map(e => e.message);
-    return res.status(400).json({ success: false, message: messages.join(', ') });
+    return res.status(400).json({ success: false, message: Object.values(err.errors).map(e => e.message).join(', ') });
   }
-
-  // Erreur duplicate MongoDB
   if (err.code === 11000) {
     return res.status(400).json({ success: false, message: 'Cette valeur existe déjà' });
   }
-
   res.status(err.statusCode || 500).json({
     success: false,
     message: process.env.NODE_ENV === 'production' ? 'Erreur serveur interne' : err.message,
@@ -110,6 +86,15 @@ mongoose
   })
   .then(() => {
     console.log('✅ MongoDB connecté');
+
+    // Démarrer les crons après connexion DB
+    const demarrerCrons = require('./services/cronJobs');
+    demarrerCrons();
+
+    // Tester le service email au démarrage
+    const emailService = require('./services/emailService');
+    emailService.testerConnexion();
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Serveur démarré sur le port ${PORT}`);
     });

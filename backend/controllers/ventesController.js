@@ -1,11 +1,13 @@
 const Vente     = require('../models/Vente');
 const Produit   = require('../models/Produit');
 const Mouvement = require('../models/Mouvement');
+const email     = require('../services/emailService');
 
 exports.creerVente = async (req, res) => {
   try {
     const { client, lignes, remise=0, modePaiement, montantRecu, notes } = req.body;
-    if (!lignes || lignes.length === 0) return res.status(400).json({ success:false, message:'La vente doit contenir au moins un produit' });
+    if (!lignes || lignes.length === 0)
+      return res.status(400).json({ success:false, message:'La vente doit contenir au moins un produit' });
 
     const lignesFinales = [];
     let totalHT = 0;
@@ -13,28 +15,61 @@ exports.creerVente = async (req, res) => {
     for (const l of lignes) {
       const produit = await Produit.findById(l.produitId);
       if (!produit) throw new Error(`Produit introuvable`);
-      if (produit.quantiteStock < l.quantite) throw new Error(`Stock insuffisant pour "${produit.nom}" (dispo : ${produit.quantiteStock} ${produit.unite})`);
+      if (produit.quantiteStock < l.quantite)
+        throw new Error(`Stock insuffisant pour "${produit.nom}" (dispo : ${produit.quantiteStock} ${produit.unite})`);
       const sousTotal = l.quantite * l.prixUnitaire;
       totalHT += sousTotal;
       lignesFinales.push({ produit:produit._id, nomProduit:produit.nom, unite:produit.unite, quantite:l.quantite, prixUnitaire:l.prixUnitaire, sousTotal });
     }
 
-    const totalNet = totalHT - (Number(remise) || 0);
+    const totalNet = Math.max(0, totalHT - (Number(remise) || 0));
     const monnaie  = montantRecu ? Math.max(0, Number(montantRecu) - totalNet) : 0;
 
-    const vente = await Vente.create({ client, lignes:lignesFinales, totalHT, remise:Number(remise)||0, totalNet, modePaiement, montantRecu:Number(montantRecu)||0, monnaie, notes, vendeur:req.user._id });
+    const vente = await Vente.create({
+      client, lignes:lignesFinales, totalHT,
+      remise:Number(remise)||0, totalNet, modePaiement,
+      montantRecu:Number(montantRecu)||0, monnaie, notes,
+      vendeur:req.user._id,
+    });
 
+    // Déduire le stock + mouvements
     for (const l of lignesFinales) {
       const produit = await Produit.findById(l.produit);
       const qAvant  = produit.quantiteStock;
       produit.quantiteStock -= l.quantite;
       await produit.save();
-      await Mouvement.create({ produit:l.produit, type:'sortie', quantite:l.quantite, quantiteAvant:qAvant, quantiteApres:produit.quantiteStock, prixUnitaire:l.prixUnitaire, motif:`Vente ${vente.numero}`, reference:vente.numero, client:client?.nom, utilisateur:req.user._id });
+      await Mouvement.create({
+        produit:l.produit, type:'sortie', quantite:l.quantite,
+        quantiteAvant:qAvant, quantiteApres:produit.quantiteStock,
+        prixUnitaire:l.prixUnitaire, motif:`Vente ${vente.numero}`,
+        reference:vente.numero, client:client?.nom, utilisateur:req.user._id,
+      });
     }
 
     await vente.populate('vendeur','nom');
+
+    // ─── Email alerte vente importante (en arrière-plan) ─────────────────────
+    email.envoyerAlerteVente(vente).catch(err =>
+      console.error('Email vente importante :', err.message)
+    );
+
+    // ─── Email alerte stock si rupture après vente ────────────────────────────
+    const produitsEnAlerte = await Produit.find({
+      actif: true,
+      _id: { $in: lignesFinales.map(l => l.produit) },
+      $expr: { $lte: ['$quantiteStock', '$seuilAlerte'] },
+    }).select('nom unite quantiteStock seuilAlerte');
+
+    if (produitsEnAlerte.length > 0) {
+      email.envoyerAlerteStock(produitsEnAlerte).catch(err =>
+        console.error('Email alerte stock :', err.message)
+      );
+    }
+
     res.status(201).json({ success:true, data:vente, message:`Vente ${vente.numero} enregistrée` });
-  } catch (err) { res.status(400).json({ success:false, message:err.message }); }
+  } catch (err) {
+    res.status(400).json({ success:false, message:err.message });
+  }
 };
 
 exports.getVentes = async (req, res) => {
@@ -74,7 +109,11 @@ exports.annulerVente = async (req, res) => {
         const qAvant = produit.quantiteStock;
         produit.quantiteStock += l.quantite;
         await produit.save();
-        await Mouvement.create({ produit:l.produit, type:'retour', quantite:l.quantite, quantiteAvant:qAvant, quantiteApres:produit.quantiteStock, motif:`Annulation ${vente.numero}`, reference:vente.numero, utilisateur:req.user._id });
+        await Mouvement.create({
+          produit:l.produit, type:'retour', quantite:l.quantite,
+          quantiteAvant:qAvant, quantiteApres:produit.quantiteStock,
+          motif:`Annulation ${vente.numero}`, reference:vente.numero, utilisateur:req.user._id,
+        });
       }
     }
     vente.statut = 'annulee';
