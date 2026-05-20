@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Zap, Eye, EyeOff, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -15,11 +15,11 @@ export default function Connexion() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { utilisateur } = await connexion(form.email, form.motDePasse);
+      const utilisateur = await connexion(form.email, form.motDePasse);
       toast.success(`Bienvenue, ${utilisateur.nom} !`);
-      navigate(utilisateur.role === 'superadmin' ? '/superadmin' : '/');
+      navigate('/');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur de connexion');
+      toast.error(err.response?.data?.message || 'Identifiants incorrects');
     } finally {
       setLoading(false);
     }
@@ -33,8 +33,8 @@ export default function Connexion() {
           <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200 mx-auto mb-4">
             <Zap size={28} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">StockSaaS</h1>
-          <p className="text-slate-500 text-sm mt-1">Connectez-vous à votre espace</p>
+          <h1 className="text-2xl font-bold text-slate-900">StockBTP</h1>
+          <p className="text-slate-500 text-sm mt-1">Gestion de stock BTP</p>
         </div>
 
         {/* Card */}
@@ -69,9 +69,8 @@ export default function Connexion() {
           <div className="mt-6 p-4 bg-slate-50 rounded-xl text-xs text-slate-500 space-y-1">
             <p className="font-semibold text-slate-600 mb-2">Comptes de démonstration :</p>
             {[
-              ['Admin Quincaillerie', 'admin@alpha.gn', 'admin123'],
-              ['Gestionnaire',        'gestion@alpha.gn','pass123'],
-              ['SuperAdmin',          'superadmin@stocksaas.com','SuperAdmin123!'],
+              ['Admin',        'admin@alpha.gn',   'admin123'],
+              ['Gestionnaire', 'gestion@alpha.gn', 'pass123'],
             ].map(([label, email, mdp]) => (
               <button key={email} type="button"
                 onClick={() => setForm({ email, motDePasse: mdp })}
@@ -81,13 +80,6 @@ export default function Connexion() {
               </button>
             ))}
           </div>
-
-          <p className="text-center text-sm text-slate-500 mt-5">
-            Pas encore de compte ?{' '}
-            <Link to="/inscription" className="text-indigo-600 font-semibold hover:underline">
-              Créer un compte gratuit
-            </Link>
-          </p>
         </div>
       </div>
     </div>

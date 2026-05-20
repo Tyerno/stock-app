@@ -17,7 +17,6 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      localStorage.removeItem('entreprise');
       window.location.href = '/connexion';
     }
     return Promise.reject(error);

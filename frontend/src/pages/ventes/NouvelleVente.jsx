@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Minus, Trash2, ShoppingCart, Check, Loader, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
-import { useAuth } from '../../context/AuthContext';
 import { formatMontant, formatNombre } from '../../utils/format';
 
 const MODES_PAIEMENT = [
@@ -15,7 +14,7 @@ const MODES_PAIEMENT = [
 ];
 
 export default function NouvelleVente() {
-  const { devise } = useAuth();
+  const devise = localStorage.getItem('boutique_devise') || 'GNF';
   const navigate   = useNavigate();
   const qc         = useQueryClient();
 

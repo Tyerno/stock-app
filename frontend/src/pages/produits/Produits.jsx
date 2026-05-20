@@ -1,279 +1,593 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Package, Edit2, Trash2, Loader, X } from 'lucide-react';
+import {
+  Plus, Search, Filter, LayoutGrid, List,
+  Package, ArrowDownCircle, ArrowUpCircle,
+  Pencil, Trash2, X, Check, ChevronDown,
+  TrendingUp, AlertTriangle, Tag
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
-import { useAuth } from '../../context/AuthContext';
-import { formatMontant, formatNombre, statutStockBadge } from '../../utils/format';
+import { fmt, inputCls } from '../../utils/format';
+import StatutBadge from '../../components/common/StatutBadge';
 
-function Modal({ title, onClose, children }) {
+const UNITES = ['unité','kg','tonne','m','m²','m³','litre','sac','palette','lot'];
+
+// ─── Modal formulaire produit ─────────────────────────────────────────────────
+function ModaleProduit({ produit, categories, onClose }) {
+  const qc = useQueryClient();
+  const isEdit = !!produit?._id;
+  const [form, setForm] = useState({
+    nom:            produit?.nom            || '',
+    reference:      produit?.reference      || '',
+    description:    produit?.description    || '',
+    categorie:      produit?.categorie?._id || produit?.categorie || '',
+    unite:          produit?.unite          || 'unité',
+    prixAchat:      produit?.prixAchat      || '',
+    prixVente:      produit?.prixVente      || '',
+    quantiteStock:  produit?.quantiteStock  || '',
+    seuilAlerte:    produit?.seuilAlerte    || 10,
+  });
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const marge = form.prixAchat && form.prixVente
+    ? (((form.prixVente - form.prixAchat) / form.prixAchat) * 100).toFixed(1)
+    : 0;
+
+  const mutation = useMutation({
+    mutationFn: (d) => isEdit
+      ? api.put(`/produits/${produit._id}`, d)
+      : api.post('/produits', d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['produits'] });
+      toast.success(isEdit ? 'Produit mis à jour ✓' : 'Produit créé ✓');
+      onClose();
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
+  });
+
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <h3 className="font-bold text-slate-900">{title}</h3>
-          <button onClick={onClose} className="btn-icon"><X size={16} /></button>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-scale-in overflow-hidden max-h-[90vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center shadow-md shadow-blue-200">
+              <Package size={16} className="text-white"/>
+            </div>
+            <div>
+              <h3 className="font-syne font-bold text-gray-900">{isEdit ? 'Modifier le produit' : 'Nouveau produit'}</h3>
+              <p className="text-xs text-gray-400">{isEdit ? produit.nom : 'Remplissez les informations'}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-all">
+            <X size={15}/>
+          </button>
         </div>
-        {children}
+
+        {/* Form */}
+        <div className="overflow-y-auto p-6 flex flex-col gap-5">
+
+          {/* Infos de base */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">📦 Informations de base</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2 flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Nom du produit *</label>
+                <input className={inputCls} value={form.nom} onChange={e => set('nom', e.target.value)} placeholder="Ex: Ciment Portland 42.5"/>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Référence</label>
+                <input className={inputCls} value={form.reference} onChange={e => set('reference', e.target.value.toUpperCase())} placeholder="Ex: CIM-001"/>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Catégorie *</label>
+                <select className={inputCls} value={form.categorie} onChange={e => set('categorie', e.target.value)}>
+                  <option value="">-- Choisir --</option>
+                  {categories?.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Unité *</label>
+                <select className={inputCls} value={form.unite} onChange={e => set('unite', e.target.value)}>
+                  {UNITES.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              <div className="sm:col-span-2 flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Description</label>
+                <input className={inputCls} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Description optionnelle"/>
+              </div>
+            </div>
+          </div>
+
+          {/* Prix */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">💰 Prix et stock</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Prix d'achat (GNF) *</label>
+                <input type="number" min="0" className={inputCls} value={form.prixAchat} onChange={e => set('prixAchat', Number(e.target.value))} placeholder="0"/>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Prix de vente (GNF) *</label>
+                <input type="number" min="0" className={inputCls} value={form.prixVente} onChange={e => set('prixVente', Number(e.target.value))} placeholder="0"/>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">
+                  {isEdit ? 'Stock actuel' : 'Stock initial'}
+                </label>
+                <input type="number" min="0" className={inputCls} value={form.quantiteStock}
+                  onChange={e => set('quantiteStock', Number(e.target.value))} placeholder="0"
+                  disabled={isEdit}/>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-500">Seuil d'alerte</label>
+                <input type="number" min="0" className={inputCls} value={form.seuilAlerte} onChange={e => set('seuilAlerte', Number(e.target.value))} placeholder="10"/>
+              </div>
+            </div>
+
+            {/* Marge calculée */}
+            {form.prixAchat > 0 && form.prixVente > 0 && (
+              <div className={`mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border ${marge >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                <TrendingUp size={16} className={marge >= 0 ? 'text-green-600' : 'text-red-500'}/>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-700">Marge bénéficiaire</p>
+                  <p className="text-xs text-gray-400">Bénéfice par {form.unite} : {fmt(form.prixVente - form.prixAchat)} GNF</p>
+                </div>
+                <span className={`text-lg font-bold ${marge >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {marge}%
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50 flex-shrink-0">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-all">
+            Annuler
+          </button>
+          <button onClick={() => mutation.mutate(form)} disabled={!form.nom || !form.categorie || mutation.isPending}
+            className="px-5 py-2 rounded-xl text-sm font-semibold gradient-brand text-white hover:opacity-90 transition-all shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2">
+            {mutation.isPending ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Enregistrement…</> : <><Check size={14}/> {isEdit ? 'Mettre à jour' : 'Créer le produit'}</>}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function ProduitForm({ initial, categories, onSubmit, loading, onClose }) {
-  const { devise } = useAuth();
-  const [form, setForm] = useState(initial || {
-    nom: '', reference: '', description: '', categorie: '',
-    unite: 'unité', prixAchat: '', prixVente: '', quantiteStock: '', seuilAlerte: 5,
-  });
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+// ─── Modal entrée/sortie de stock ─────────────────────────────────────────────
+function ModaleStock({ produit, type, onClose }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ quantite:'', motif:'', prixUnitaire:'' });
 
-  const marge = form.prixAchat && form.prixVente
-    ? Math.round(((form.prixVente - form.prixAchat) / form.prixAchat) * 100)
-    : null;
+  const mutation = useMutation({
+    mutationFn: (d) => api.post(`/produits/${produit._id}/${type}`, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['produits'] });
+      toast.success(`${type === 'entree' ? 'Entrée' : 'Sortie'} de stock enregistrée ✓`);
+      onClose();
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
+  });
+
+  const isEntree = type === 'entree';
 
   return (
-    <>
-      <div className="modal-body space-y-4 max-h-[70vh] overflow-y-auto">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="form-group col-span-2">
-            <label className="label">Nom du produit *</label>
-            <input className="input" value={form.nom} onChange={set('nom')} placeholder="Ex: Ciment Portland 50kg" required />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-scale-in">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isEntree ? 'bg-green-100' : 'bg-red-100'}`}>
+              {isEntree ? <ArrowDownCircle size={18} className="text-green-600"/> : <ArrowUpCircle size={18} className="text-red-500"/>}
+            </div>
+            <div>
+              <h3 className="font-syne font-bold text-gray-900">{isEntree ? 'Entrée de stock' : 'Sortie de stock'}</h3>
+              <p className="text-xs text-gray-400 truncate max-w-[200px]">{produit.nom}</p>
+            </div>
           </div>
-          <div className="form-group">
-            <label className="label">Référence</label>
-            <input className="input" value={form.reference} onChange={set('reference')} placeholder="Auto-générée" />
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"><X size={15}/></button>
+        </div>
+
+        <div className="px-6 py-5 flex flex-col gap-4">
+          {/* Stock actuel */}
+          <div className={`flex items-center justify-between px-4 py-3 rounded-xl border ${isEntree ? 'bg-green-50 border-green-100' : 'bg-blue-50 border-blue-100'}`}>
+            <span className="text-sm text-gray-600">Stock actuel</span>
+            <span className="font-bold text-gray-900">{fmt(produit.quantiteStock)} {produit.unite}</span>
           </div>
-          <div className="form-group">
-            <label className="label">Catégorie</label>
-            <select className="input" value={form.categorie} onChange={set('categorie')}>
-              <option value="">Sans catégorie</option>
-              {categories?.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
-            </select>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500">Quantité ({produit.unite}) *</label>
+            <input type="number" min="0.01" step="any" className={inputCls} value={form.quantite}
+              onChange={e => setForm(f => ({ ...f, quantite: e.target.value }))} placeholder="0"/>
           </div>
-          <div className="form-group">
-            <label className="label">Prix d'achat ({devise})</label>
-            <input type="number" className="input" value={form.prixAchat} onChange={set('prixAchat')} placeholder="0" min="0" required />
-          </div>
-          <div className="form-group">
-            <label className="label">
-              Prix de vente ({devise})
-              {marge !== null && <span className={`ml-2 text-xs font-bold ${marge >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                {marge >= 0 ? '+' : ''}{marge}% marge
-              </span>}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500">
+              {isEntree ? 'Prix d\'achat unitaire (GNF)' : 'Prix de vente unitaire (GNF)'}
             </label>
-            <input type="number" className="input" value={form.prixVente} onChange={set('prixVente')} placeholder="0" min="0" required />
+            <input type="number" min="0" className={inputCls} value={form.prixUnitaire}
+              onChange={e => setForm(f => ({ ...f, prixUnitaire: e.target.value }))}
+              placeholder={isEntree ? fmt(produit.prixAchat) : fmt(produit.prixVente)}/>
           </div>
-          <div className="form-group">
-            <label className="label">Stock initial</label>
-            <input type="number" className="input" value={form.quantiteStock} onChange={set('quantiteStock')} placeholder="0" min="0" />
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500">Motif</label>
+            <input className={inputCls} value={form.motif}
+              onChange={e => setForm(f => ({ ...f, motif: e.target.value }))}
+              placeholder={isEntree ? 'Ex: Livraison fournisseur' : 'Ex: Usage chantier'}/>
           </div>
-          <div className="form-group">
-            <label className="label">Seuil d'alerte</label>
-            <input type="number" className="input" value={form.seuilAlerte} onChange={set('seuilAlerte')} placeholder="5" min="0" />
-          </div>
-          <div className="form-group">
-            <label className="label">Unité</label>
-            <input className="input" value={form.unite} onChange={set('unite')} placeholder="unité, kg, litre…" />
-          </div>
-          <div className="form-group">
-            <label className="label">Description</label>
-            <input className="input" value={form.description} onChange={set('description')} placeholder="Facultatif" />
-          </div>
+
+          {/* Nouveau stock prévu */}
+          {form.quantite > 0 && (
+            <div className={`flex items-center justify-between px-4 py-3 rounded-xl border font-bold ${isEntree ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
+              <span className="text-sm text-gray-600">Stock après {isEntree ? 'entrée' : 'sortie'}</span>
+              <span className={`text-lg ${isEntree ? 'text-green-600' : 'text-amber-600'}`}>
+                {fmt(isEntree
+                  ? produit.quantiteStock + Number(form.quantite)
+                  : Math.max(0, produit.quantiteStock - Number(form.quantite))
+                )} {produit.unite}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50 rounded-b-2xl">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-all">Annuler</button>
+          <button onClick={() => mutation.mutate(form)} disabled={!form.quantite || mutation.isPending}
+            className={`px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-md disabled:opacity-50 flex items-center gap-2 ${isEntree ? 'bg-green-500 hover:bg-green-600 shadow-green-200' : 'bg-red-500 hover:bg-red-600 shadow-red-200'}`}>
+            {mutation.isPending ? 'Enregistrement…' : isEntree ? <><ArrowDownCircle size={14}/> Confirmer l'entrée</> : <><ArrowUpCircle size={14}/> Confirmer la sortie</>}
+          </button>
         </div>
       </div>
-      <div className="modal-footer">
-        <button className="btn-secondary" onClick={onClose}>Annuler</button>
-        <button className="btn-primary" disabled={loading} onClick={() => {
-          // FIX: supprimer les champs vides pour éviter le cast ObjectId("")
-          const payload = { ...form };
-          if (!payload.categorie)     delete payload.categorie;
-          if (!payload.reference)     delete payload.reference;
-          if (!payload.description)   delete payload.description;
-          if (payload.quantiteStock === '') payload.quantiteStock = 0;
-          if (payload.seuilAlerte   === '') payload.seuilAlerte   = 5;
-          onSubmit(payload);
-        }}>
-          {loading && <Loader size={14} className="animate-spin" />}
-          {initial ? 'Mettre à jour' : 'Ajouter le produit'}
-        </button>
-      </div>
-    </>
+    </div>
   );
 }
 
+// ─── Card produit (vue grille) ────────────────────────────────────────────────
+function ProduitCard({ produit, onEdit, onEntree, onSortie, onSupprimer }) {
+  const pct = produit.seuilAlerte > 0
+    ? Math.min(100, (produit.quantiteStock / (produit.seuilAlerte * 3)) * 100)
+    : 100;
+  const barColor = produit.quantiteStock === 0 ? '#EF4444'
+    : produit.quantiteStock <= produit.seuilAlerte ? '#F59E0B' : '#10B981';
+
+  return (
+    <div className="card-neu p-4 flex flex-col gap-3 hover:-translate-y-0.5 transition-all duration-200 group">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm"
+            style={{ background: produit.categorie?.couleur || '#3B82F6' }}>
+            {produit.nom.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-900 truncate">{produit.nom}</p>
+            {produit.reference && <p className="text-[10px] font-mono text-gray-400">{produit.reference}</p>}
+          </div>
+        </div>
+        <StatutBadge produit={produit}/>
+      </div>
+
+      {/* Catégorie */}
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: produit.categorie?.couleur || '#3B82F6' }}/>
+        <span className="text-[10px] text-gray-400 font-medium">{produit.categorie?.nom}</span>
+      </div>
+
+      {/* Stock bar */}
+      <div>
+        <div className="flex justify-between text-xs mb-1.5">
+          <span className="text-gray-500">Stock</span>
+          <span className="font-bold text-gray-800">{fmt(produit.quantiteStock)} {produit.unite}</span>
+        </div>
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-700" style={{ width:`${pct}%`, background:barColor }}/>
+        </div>
+        <p className="text-[10px] text-gray-400 mt-1">Seuil d'alerte : {produit.seuilAlerte} {produit.unite}</p>
+      </div>
+
+      {/* Prix */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-gray-50 rounded-xl p-2.5 text-center border border-gray-100">
+          <p className="text-[9px] text-gray-400 uppercase tracking-wider">Achat</p>
+          <p className="text-sm font-bold text-gray-700">{fmt(produit.prixAchat)}</p>
+          <p className="text-[9px] text-gray-400">GNF</p>
+        </div>
+        <div className="bg-blue-50 rounded-xl p-2.5 text-center border border-blue-100">
+          <p className="text-[9px] text-gray-400 uppercase tracking-wider">Vente</p>
+          <p className="text-sm font-bold text-blue-600">{fmt(produit.prixVente)}</p>
+          <p className="text-[9px] text-gray-400">GNF</p>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1.5 pt-1 border-t border-gray-100">
+        <button onClick={() => onEntree(produit)} title="Entrée stock"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-green-50 text-green-600 text-xs font-semibold hover:bg-green-100 transition-all">
+          <ArrowDownCircle size={12}/> Entrée
+        </button>
+        <button onClick={() => onSortie(produit)} title="Sortie stock"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-red-50 text-red-500 text-xs font-semibold hover:bg-red-100 transition-all">
+          <ArrowUpCircle size={12}/> Sortie
+        </button>
+        <button onClick={() => onEdit(produit)} title="Modifier"
+          className="p-1.5 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+          <Pencil size={14}/>
+        </button>
+        <button onClick={() => onSupprimer(produit)} title="Supprimer"
+          className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+          <Trash2 size={14}/>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PAGE PRINCIPALE
+// ════════════════════════════════════════════════════════════════════════════
 export default function Produits() {
-  const { devise, peutEcrire, isAdmin } = useAuth();
   const qc = useQueryClient();
-  const [search, setSearch]   = useState('');
-  const [filtreCat, setFiltreCat] = useState('');
-  const [modal, setModal]     = useState(null); // null | 'creer' | {produit}
-  const [confirm, setConfirm] = useState(null);
+  const [vue, setVue]               = useState('grille');
+  const [search, setSearch]         = useState('');
+  const [catFiltre, setCatFiltre]   = useState('');
+  const [statutFiltre, setStatut]   = useState('');
+  const [filtresOpen, setFiltres]   = useState(false);
+  const [modaleForm, setModaleForm] = useState(null);
+  const [modaleStock, setModaleStock] = useState(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['produits', search, filtreCat],
-    queryFn:  () => api.get('/produits', { params: { search, categorie: filtreCat, limit: 100 } }).then(r => r.data),
+    queryKey: ['produits', search, catFiltre, statutFiltre],
+    queryFn:  () => api.get('/produits', {
+      params: { search, categorie:catFiltre||undefined, statut:statutFiltre||undefined, limit:100 }
+    }).then(r => r.data),
   });
 
-  const { data: cats } = useQuery({
+  const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn:  () => api.get('/categories').then(r => r.data.data),
   });
 
-  const creerMutation = useMutation({
-    mutationFn: (body) => api.post('/produits', body),
-    onSuccess: () => { qc.invalidateQueries(['produits']); toast.success('Produit créé !'); setModal(null); },
-    onError:   (e) => toast.error(e.response?.data?.message || 'Erreur'),
-  });
-
-  const modifierMutation = useMutation({
-    mutationFn: ({ id, body }) => api.put(`/produits/${id}`, body),
-    onSuccess: () => { qc.invalidateQueries(['produits']); toast.success('Produit mis à jour'); setModal(null); },
-    onError:   (e) => toast.error(e.response?.data?.message || 'Erreur'),
-  });
-
-  const supprimerMutation = useMutation({
+  const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/produits/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['produits']); toast.success('Produit archivé'); setConfirm(null); },
-    onError:   (e) => toast.error(e.response?.data?.message || 'Erreur'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['produits'] }); toast.success('Produit archivé'); },
+    onError: () => toast.error('Erreur lors de la suppression'),
   });
+
+  const onSupprimer = (p) => {
+    if (window.confirm(`Archiver "${p.nom}" ?`)) deleteMutation.mutate(p._id);
+  };
 
   const produits = data?.data || [];
+  const stats = {
+    total:    produits.length,
+    rupture:  produits.filter(p => p.quantiteStock === 0).length,
+    faible:   produits.filter(p => p.quantiteStock > 0 && p.quantiteStock <= p.seuilAlerte).length,
+    valeur:   produits.reduce((s, p) => s + p.quantiteStock * p.prixAchat, 0),
+  };
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="min-h-screen bg-gray-100 p-5 lg:p-7">
+
       {/* Header */}
-      <div className="page-header">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 animate-fade-up">
         <div>
-          <h1 className="page-title">Produits</h1>
-          <p className="page-subtitle">{data?.total || 0} produit(s) en catalogue</p>
+          <h1 className="font-syne text-xl font-bold text-gray-900 tracking-tight">Produits</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{stats.total} produit(s) dans le catalogue</p>
         </div>
-        {peutEcrire && (
-          <button className="btn-primary" onClick={() => setModal('creer')}>
-            <Plus size={16} /> Nouveau produit
-          </button>
-        )}
+        <button onClick={() => setModaleForm({})}
+          className="flex items-center gap-2 px-4 py-2.5 gradient-brand text-white font-semibold text-sm rounded-xl hover:opacity-90 transition-all shadow-lg shadow-blue-200 active:scale-95">
+          <Plus size={15}/> Nouveau produit
+        </button>
       </div>
 
-      {/* Filtres */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" placeholder="Rechercher un produit…"
-            value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <select className="input w-auto min-w-36" value={filtreCat} onChange={e => setFiltreCat(e.target.value)}>
-          <option value="">Toutes catégories</option>
-          {cats?.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="card">
-        {isLoading ? (
-          <div className="p-12 text-center"><Loader size={24} className="animate-spin text-indigo-500 mx-auto" /></div>
-        ) : produits.length === 0 ? (
-          <div className="p-12 text-center">
-            <Package size={40} className="text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">Aucun produit trouvé</p>
-            {peutEcrire && <button className="btn-primary mt-4" onClick={() => setModal('creer')}><Plus size={14} />Ajouter un produit</button>}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5 animate-fade-up-2">
+        {[
+          { label:'Total produits', value:stats.total,           color:'text-blue-600',   bg:'bg-blue-50',   Icon:Package },
+          { label:'En rupture',     value:stats.rupture,         color:'text-red-600',    bg:'bg-red-50',    Icon:AlertTriangle },
+          { label:'Stock faible',   value:stats.faible,          color:'text-amber-600',  bg:'bg-amber-50',  Icon:AlertTriangle },
+          { label:'Valeur stock',   value:fmt(stats.valeur)+' GNF', color:'text-green-600', bg:'bg-green-50', Icon:Tag },
+        ].map((k, i) => (
+          <div key={k.label} className={`card-neu p-4 animate-fade-up-${i+1}`}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{k.label}</p>
+              <div className={`w-8 h-8 rounded-xl ${k.bg} flex items-center justify-center`}>
+                <k.Icon size={15} className={k.color}/>
+              </div>
+            </div>
+            <p className={`font-syne text-xl font-bold ${k.color}`}>{k.value}</p>
           </div>
-        ) : (
-          <div className="table-wrapper">
-            <table className="table">
+        ))}
+      </div>
+
+      {/* Barre recherche + filtres + vue */}
+      <div className="flex flex-col gap-3 mb-5 animate-fade-up-3">
+        <div className="flex items-center gap-3">
+          {/* Recherche */}
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
+            <input className="w-full bg-white border border-gray-200 text-gray-800 text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-gray-400 shadow-sm"
+              placeholder="Rechercher un produit par nom ou référence…"
+              value={search} onChange={e => setSearch(e.target.value)}/>
+          </div>
+
+          {/* Filtres */}
+          <button onClick={() => setFiltres(v => !v)}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${filtresOpen || catFiltre || statutFiltre ? 'border-blue-400 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
+            <Filter size={14}/> Filtres
+            {(catFiltre || statutFiltre) && <span className="w-2 h-2 rounded-full bg-blue-500"/>}
+          </button>
+
+          {/* Switch vue */}
+          <div className="flex bg-white border border-gray-200 rounded-xl p-1">
+            <button onClick={() => setVue('grille')}
+              className={`p-2 rounded-lg transition-all ${vue === 'grille' ? 'gradient-brand text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>
+              <LayoutGrid size={15}/>
+            </button>
+            <button onClick={() => setVue('liste')}
+              className={`p-2 rounded-lg transition-all ${vue === 'liste' ? 'gradient-brand text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>
+              <List size={15}/>
+            </button>
+          </div>
+        </div>
+
+        {/* Filtres avancés */}
+        {filtresOpen && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 animate-fade-up shadow-sm">
+            <div className="flex-1 flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-500">Catégorie</label>
+              <select className={inputCls} value={catFiltre} onChange={e => setCatFiltre(e.target.value)}>
+                <option value="">Toutes les catégories</option>
+                {categories?.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
+              </select>
+            </div>
+            <div className="flex-1 flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-500">Statut du stock</label>
+              <select className={inputCls} value={statutFiltre} onChange={e => setStatut(e.target.value)}>
+                <option value="">Tous les statuts</option>
+                <option value="rupture">En rupture</option>
+                <option value="faible">Stock faible</option>
+                <option value="normal">Stock normal</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button onClick={() => { setCatFiltre(''); setStatut(''); setFiltres(false); }}
+                className="px-4 py-2.5 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-all border border-gray-200">
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Filtres catégories rapides */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+          <button onClick={() => setCatFiltre('')}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${!catFiltre ? 'gradient-brand text-white shadow-md shadow-blue-200' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+            Tous
+          </button>
+          {categories?.map(c => (
+            <button key={c._id} onClick={() => setCatFiltre(catFiltre === c._id ? '' : c._id)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${catFiltre === c._id ? 'text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'}`}
+              style={catFiltre === c._id ? { background: c.couleur } : {}}>
+              <div className="w-2 h-2 rounded-full" style={{ background: c.couleur }}/>
+              {c.nom}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Contenu */}
+      {isLoading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"/>
+        </div>
+      ) : produits.length === 0 ? (
+        <div className="card-neu flex flex-col items-center py-20 text-gray-300">
+          <Package size={40} className="mb-3 opacity-30"/>
+          <p className="text-sm">Aucun produit trouvé</p>
+          <button onClick={() => setModaleForm({})} className="mt-4 px-4 py-2 rounded-xl gradient-brand text-white text-sm font-semibold">
+            Ajouter un produit
+          </button>
+        </div>
+      ) : vue === 'grille' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-fade-up-4">
+          {produits.map(p => (
+            <ProduitCard key={p._id} produit={p}
+              onEdit={setModaleForm}
+              onEntree={p => setModaleStock({ produit:p, type:'entree' })}
+              onSortie={p => setModaleStock({ produit:p, type:'sortie' })}
+              onSupprimer={onSupprimer}/>
+          ))}
+        </div>
+      ) : (
+        /* Vue liste */
+        <div className="card-neu overflow-hidden animate-fade-up-4">
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead>
-                <tr>
-                  <th>Produit</th>
-                  <th>Catégorie</th>
-                  <th>Prix achat</th>
-                  <th>Prix vente</th>
-                  <th>Stock</th>
-                  <th>Statut</th>
-                  {peutEcrire && <th></th>}
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['Produit','Catégorie','Stock','Seuil','Prix achat','Prix vente','Marge','Statut','Actions'].map(h => (
+                    <th key={h} className="text-left px-4 py-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {produits.map(p => {
-                  const badge = statutStockBadge(p);
+                  const marge = p.prixAchat > 0 ? (((p.prixVente-p.prixAchat)/p.prixAchat)*100).toFixed(1) : 0;
                   return (
-                    <tr key={p._id}>
-                      <td>
-                        <div>
-                          <p className="font-semibold text-slate-800">{p.nom}</p>
-                          <p className="text-xs text-slate-400">{p.reference}</p>
+                    <tr key={p._id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors group">
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                            style={{ background: p.categorie?.couleur || '#3B82F6' }}>
+                            {p.nom.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{p.nom}</p>
+                            {p.reference && <p className="text-[10px] font-mono text-gray-400">{p.reference}</p>}
+                          </div>
                         </div>
                       </td>
-                      <td>
-                        {p.categorie ? (
-                          <span className="badge badge-blue">{p.categorie.nom}</span>
-                        ) : <span className="text-slate-300">—</span>}
+                      <td className="px-4 py-3.5">
+                        <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-lg">{p.categorie?.nom}</span>
                       </td>
-                      <td className="font-mono text-slate-600">{formatMontant(p.prixAchat, devise)}</td>
-                      <td className="font-mono font-semibold">{formatMontant(p.prixVente, devise)}</td>
-                      <td className="font-semibold">{formatNombre(p.quantiteStock)} <span className="text-xs font-normal text-slate-400">{p.unite}</span></td>
-                      <td><span className={badge.cls}>{badge.label}</span></td>
-                      {peutEcrire && (
-                        <td>
-                          <div className="flex gap-1 justify-end">
-                            <button className="btn-icon text-slate-400 hover:text-indigo-600" onClick={() => setModal(p)}>
-                              <Edit2 size={14} />
-                            </button>
-                            {isAdmin && (
-                              <button className="btn-icon text-slate-400 hover:text-red-500" onClick={() => setConfirm(p)}>
-                                <Trash2 size={14} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
+                      <td className="px-4 py-3.5 text-sm font-bold text-gray-800 whitespace-nowrap">{fmt(p.quantiteStock)} {p.unite}</td>
+                      <td className="px-4 py-3.5 text-sm text-gray-400">{p.seuilAlerte} {p.unite}</td>
+                      <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{fmt(p.prixAchat)} GNF</td>
+                      <td className="px-4 py-3.5 text-sm font-semibold text-blue-600 whitespace-nowrap">{fmt(p.prixVente)} GNF</td>
+                      <td className="px-4 py-3.5">
+                        <span className={`text-xs font-bold ${Number(marge) >= 0 ? 'text-green-600' : 'text-red-500'}`}>{marge}%</span>
+                      </td>
+                      <td className="px-4 py-3.5"><StatutBadge produit={p}/></td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setModaleStock({ produit:p, type:'entree' })}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 transition-all" title="Entrée">
+                            <ArrowDownCircle size={14}/>
+                          </button>
+                          <button onClick={() => setModaleStock({ produit:p, type:'sortie' })}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all" title="Sortie">
+                            <ArrowUpCircle size={14}/>
+                          </button>
+                          <button onClick={() => setModaleForm(p)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                            <Pencil size={14}/>
+                          </button>
+                          <button onClick={() => onSupprimer(p)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
-
-      {/* Modal créer */}
-      {modal === 'creer' && (
-        <Modal title="Nouveau produit" onClose={() => setModal(null)}>
-          <ProduitForm categories={cats} onClose={() => setModal(null)}
-            loading={creerMutation.isPending}
-            onSubmit={(body) => creerMutation.mutate(body)} />
-        </Modal>
-      )}
-
-      {/* Modal modifier */}
-      {modal && modal !== 'creer' && (
-        <Modal title="Modifier le produit" onClose={() => setModal(null)}>
-          <ProduitForm initial={modal} categories={cats} onClose={() => setModal(null)}
-            loading={modifierMutation.isPending}
-            onSubmit={(body) => modifierMutation.mutate({ id: modal._id, body })} />
-        </Modal>
-      )}
-
-      {/* Confirmation suppression */}
-      {confirm && (
-        <div className="modal-overlay">
-          <div className="modal max-w-sm">
-            <div className="modal-body text-center py-6">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
-                <Trash2 size={20} className="text-red-500" />
-              </div>
-              <p className="font-bold text-slate-900 mb-1">Archiver ce produit ?</p>
-              <p className="text-sm text-slate-500">"{confirm.nom}" sera masqué du catalogue.</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setConfirm(null)}>Annuler</button>
-              <button className="btn-danger" onClick={() => supprimerMutation.mutate(confirm._id)}
-                disabled={supprimerMutation.isPending}>
-                {supprimerMutation.isPending && <Loader size={14} className="animate-spin" />}
-                Archiver
-              </button>
-            </div>
-          </div>
         </div>
+      )}
+
+      {/* Modales */}
+      {modaleForm !== null && (
+        <ModaleProduit
+          produit={modaleForm._id ? modaleForm : null}
+          categories={categories}
+          onClose={() => setModaleForm(null)}
+        />
+      )}
+      {modaleStock && (
+        <ModaleStock
+          produit={modaleStock.produit}
+          type={modaleStock.type}
+          onClose={() => setModaleStock(null)}
+        />
       )}
     </div>
   );

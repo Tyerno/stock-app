@@ -6,11 +6,10 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 // Layout
 import Layout from './components/layout/Layout';
 
-// Auth pages
-import Connexion   from './pages/auth/Connexion';
-import Inscription from './pages/auth/Inscription';
+// Auth
+import Connexion from './pages/auth/Connexion';
 
-// App pages
+// Pages
 import Dashboard    from './pages/dashboard/Dashboard';
 import Produits     from './pages/produits/Produits';
 import Ventes       from './pages/ventes/Ventes';
@@ -19,16 +18,13 @@ import Mouvements   from './pages/mouvements/Mouvements';
 import Alertes      from './pages/alertes/Alertes';
 import Utilisateurs from './pages/utilisateurs/Utilisateurs';
 import Parametres   from './pages/parametres/Parametres';
-
-// SuperAdmin pages
-import SuperAdminDashboard   from './pages/superadmin/SuperAdminDashboard';
-import SuperAdminEntreprises from './pages/superadmin/SuperAdminEntreprises';
+import Statistiques from './pages/statistiques/Statistiques';
+import Previsions   from './pages/previsions/Previsions';
 
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
-// Garde les routes protégées
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth();
   if (loading) return (
@@ -47,20 +43,9 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public */}
-      <Route path="/connexion"  element={!user ? <Connexion />   : <Navigate to="/" />} />
-      <Route path="/inscription" element={!user ? <Inscription /> : <Navigate to="/" />} />
+      <Route path="/connexion" element={!user ? <Connexion /> : <Navigate to="/" />} />
 
-      {/* SuperAdmin */}
-      <Route path="/superadmin" element={
-        <ProtectedRoute roles={['superadmin']}>
-          <Layout superadmin />
-        </ProtectedRoute>
-      }>
-        <Route index          element={<SuperAdminDashboard />} />
-        <Route path="entreprises" element={<SuperAdminEntreprises />} />
-      </Route>
-
-      {/* App normale */}
+      {/* App */}
       <Route path="/" element={
         <ProtectedRoute>
           <Layout />
@@ -69,11 +54,25 @@ function AppRoutes() {
         <Route index                  element={<Dashboard />} />
         <Route path="produits"        element={<Produits />} />
         <Route path="ventes"          element={<Ventes />} />
-        <Route path="ventes/nouvelle" element={<ProtectedRoute roles={['admin','gestionnaire']}><NouvelleVente /></ProtectedRoute>} />
-        <Route path="mouvements"      element={<Mouvements />} />
-        <Route path="alertes"         element={<Alertes />} />
-        <Route path="utilisateurs"    element={<ProtectedRoute roles={['admin']}><Utilisateurs /></ProtectedRoute>} />
-        <Route path="parametres"      element={<ProtectedRoute roles={['admin']}><Parametres /></ProtectedRoute>} />
+        <Route path="ventes/nouvelle" element={
+          <ProtectedRoute roles={['admin', 'gestionnaire']}>
+            <NouvelleVente />
+          </ProtectedRoute>
+        } />
+        <Route path="mouvements"   element={<Mouvements />} />
+        <Route path="alertes"      element={<Alertes />} />
+        <Route path="statistiques" element={<Statistiques />} />
+        <Route path="previsions"   element={<Previsions />} />
+        <Route path="utilisateurs" element={
+          <ProtectedRoute roles={['admin']}>
+            <Utilisateurs />
+          </ProtectedRoute>
+        } />
+        <Route path="parametres" element={
+          <ProtectedRoute roles={['admin']}>
+            <Parametres />
+          </ProtectedRoute>
+        } />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

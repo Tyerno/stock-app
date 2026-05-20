@@ -1,196 +1,258 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, UserX, Loader, X, Users } from 'lucide-react';
+import { Plus, Pencil, X, UserCheck, UserX, KeyRound, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { formatDate, roleLabel, roleBadgeCls } from '../../utils/format';
+import api from '../../utils/api';
+import { inputCls } from '../../utils/format';
 
 const ROLES = [
-  { value: 'admin',        label: 'Administrateur',  desc: 'Accès complet' },
-  { value: 'gestionnaire', label: 'Gestionnaire',    desc: 'Produits, ventes, stock' },
-  { value: 'lecteur',      label: 'Lecteur',         desc: 'Consultation uniquement' },
+  { value:'admin',        label:'Administrateur', desc:'Accès complet',               color:'bg-violet-100 text-violet-700' },
+  { value:'gestionnaire', label:'Gestionnaire',   desc:'Gestion produits et ventes',  color:'bg-blue-100 text-blue-700' },
+  { value:'lecteur',      label:'Lecteur',         desc:'Consultation uniquement',     color:'bg-gray-100 text-gray-600' },
 ];
 
-function UserModal({ initial, onClose, onSubmit, loading }) {
-  const [form, setForm] = useState(initial || { nom: '', email: '', motDePasse: '', role: 'gestionnaire' });
-  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+function RoleBadge({ role }) {
+  const r = ROLES.find(r => r.value === role);
+  return <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${r?.color}`}>{r?.label}</span>;
+}
+
+function Modal({ title, onClose, children, footer }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-scale-in">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h3 className="font-syne font-bold text-gray-900">{title}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"><X size={15}/></button>
+        </div>
+        <div className="px-6 py-5 flex flex-col gap-4">{children}</div>
+        {footer && <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50 rounded-b-2xl">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ModaleUtilisateur({ user, onClose }) {
+  const qc     = useQueryClient();
+  const isEdit = !!user?._id;
+  const [form, setForm]     = useState({ nom:user?.nom||'', email:user?.email||'', motDePasse:'', role:user?.role||'gestionnaire' });
+  const [showPwd, setShowPwd] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const mutation = useMutation({
+    mutationFn: (d) => isEdit ? api.put(`/utilisateurs/${user._id}`, d) : api.post('/utilisateurs', d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey:['utilisateurs'] });
+      toast.success(isEdit ? 'Compte mis à jour ✓' : 'Compte créé ✓');
+      onClose();
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
+  });
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <h3 className="font-bold text-slate-900">{initial ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}</h3>
-          <button onClick={onClose} className="btn-icon"><X size={16} /></button>
-        </div>
-        <div className="modal-body space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="form-group col-span-2">
-              <label className="label">Nom complet</label>
-              <input className="input" value={form.nom} onChange={set('nom')} placeholder="Prénom Nom" required />
-            </div>
-            <div className="form-group col-span-2">
-              <label className="label">Email</label>
-              <input type="email" className="input" value={form.email} onChange={set('email')} placeholder="email@exemple.com" required />
-            </div>
-            {!initial && (
-              <div className="form-group col-span-2">
-                <label className="label">Mot de passe</label>
-                <input type="password" className="input" value={form.motDePasse} onChange={set('motDePasse')} placeholder="Laisser vide = Bienvenue123!" />
-              </div>
-            )}
-          </div>
-          <div className="form-group">
-            <label className="label">Rôle</label>
-            <div className="space-y-2">
-              {ROLES.map(r => (
-                <label key={r.value}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                    form.role === r.value ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 hover:border-slate-200'
-                  }`}>
-                  <input type="radio" name="role" value={r.value} checked={form.role === r.value}
-                    onChange={set('role')} className="hidden" />
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    form.role === r.value ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
-                  }`}>
-                    {form.role === r.value && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm text-slate-800">{r.label}</p>
-                    <p className="text-xs text-slate-400">{r.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
+    <Modal title={isEdit ? 'Modifier le compte' : 'Nouveau compte'} onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-all">Annuler</button>
+        <button onClick={() => mutation.mutate(form)} disabled={mutation.isPending}
+          className="px-5 py-2 rounded-xl text-sm font-semibold gradient-brand text-white hover:opacity-90 transition-all shadow-md shadow-blue-200 disabled:opacity-50">
+          {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </>}>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-500">Nom complet *</label>
+        <input className={inputCls} value={form.nom} onChange={e => set('nom', e.target.value)} placeholder="Ex: Jean Dupont"/>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-500">Adresse email *</label>
+        <input type="email" className={inputCls} value={form.email} onChange={e => set('email', e.target.value)} placeholder="jean@boutique.com"/>
+      </div>
+
+      {!isEdit && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-gray-500">Mot de passe *</label>
+          <div className="relative">
+            <input type={showPwd ? 'text' : 'password'} className={inputCls + ' pr-10'}
+              value={form.motDePasse} onChange={e => set('motDePasse', e.target.value)} placeholder="Minimum 6 caractères"/>
+            <button type="button" onClick={() => setShowPwd(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {showPwd ? <EyeOff size={14}/> : <Eye size={14}/>}
+            </button>
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Annuler</button>
-          <button className="btn-primary" disabled={loading} onClick={() => onSubmit(form)}>
-            {loading && <Loader size={14} className="animate-spin" />}
-            {initial ? 'Mettre à jour' : 'Créer l\'utilisateur'}
+      )}
+
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-semibold text-gray-500">Rôle *</label>
+        {ROLES.map(r => (
+          <div key={r.value} onClick={() => set('role', r.value)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${form.role === r.value ? 'border-blue-400 bg-blue-50' : 'border-gray-100 hover:border-gray-200'}`}>
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${form.role === r.value ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+              {form.role === r.value && <div className="w-1.5 h-1.5 rounded-full bg-white"/>}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">{r.label}</p>
+              <p className="text-xs text-gray-400">{r.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+function ModaleMotDePasse({ user, onClose }) {
+  const [form, setForm]     = useState({ motDePasse:'', confirm:'' });
+  const [showPwd, setShowPwd] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch(`/utilisateurs/${user._id}/mot-de-passe`, { motDePasse: form.motDePasse }),
+    onSuccess: () => { toast.success('Mot de passe mis à jour ✓'); onClose(); },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
+  });
+
+  const valider = () => {
+    if (form.motDePasse.length < 6) return toast.error('Minimum 6 caractères');
+    if (form.motDePasse !== form.confirm) return toast.error('Les mots de passe ne correspondent pas');
+    mutation.mutate();
+  };
+
+  return (
+    <Modal title={`Changer le mot de passe — ${user.nom}`} onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-all">Annuler</button>
+        <button onClick={valider} disabled={mutation.isPending}
+          className="px-5 py-2 rounded-xl text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-md shadow-amber-200 disabled:opacity-50">
+          {mutation.isPending ? '…' : 'Changer'}
+        </button>
+      </>}>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-500">Nouveau mot de passe</label>
+        <div className="relative">
+          <input type={showPwd ? 'text' : 'password'} className={inputCls + ' pr-10'}
+            value={form.motDePasse} onChange={e => setForm(f => ({ ...f, motDePasse: e.target.value }))} placeholder="Minimum 6 caractères"/>
+          <button type="button" onClick={() => setShowPwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+            {showPwd ? <EyeOff size={14}/> : <Eye size={14}/>}
           </button>
         </div>
       </div>
-    </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-500">Confirmer</label>
+        <input type="password" className={inputCls}
+          value={form.confirm} onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))} placeholder="Répétez le mot de passe"/>
+      </div>
+    </Modal>
   );
 }
 
 export default function Utilisateurs() {
   const { user: moi } = useAuth();
   const qc = useQueryClient();
-  const [modal, setModal]   = useState(null);
-  const [confirm, setConfirm] = useState(null);
+  const [modaleF, setModaleF]     = useState(null);
+  const [modalePwd, setModalePwd] = useState(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['utilisateurs'],
     queryFn:  () => api.get('/utilisateurs').then(r => r.data.data),
   });
 
-  const creerMut = useMutation({
-    mutationFn: b => api.post('/utilisateurs', b),
-    onSuccess: () => { qc.invalidateQueries(['utilisateurs']); toast.success('Utilisateur créé !'); setModal(null); },
-    onError:   e => toast.error(e.response?.data?.message || 'Erreur'),
+  const toggleMutation = useMutation({
+    mutationFn: (id) => api.patch(`/utilisateurs/${id}/toggle`),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey:['utilisateurs'] }); toast.success(r.data.message); },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
   });
-
-  const modifMut = useMutation({
-    mutationFn: ({ id, b }) => api.put(`/utilisateurs/${id}`, b),
-    onSuccess: () => { qc.invalidateQueries(['utilisateurs']); toast.success('Mis à jour'); setModal(null); },
-    onError:   e => toast.error(e.response?.data?.message || 'Erreur'),
-  });
-
-  const suppMut = useMutation({
-    mutationFn: id => api.delete(`/utilisateurs/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['utilisateurs']); toast.success('Utilisateur désactivé'); setConfirm(null); },
-    onError:   e => toast.error(e.response?.data?.message || 'Erreur'),
-  });
-
-  const utilisateurs = data || [];
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      <div className="page-header">
+    <div className="min-h-screen bg-gray-100 p-5 lg:p-7">
+      <div className="flex items-start justify-between mb-6 animate-fade-up">
         <div>
-          <h1 className="page-title">Utilisateurs</h1>
-          <p className="page-subtitle">{utilisateurs.length} membre(s) dans votre équipe</p>
+          <h1 className="font-syne text-xl font-bold text-gray-900 tracking-tight">Utilisateurs</h1>
+          <p className="text-sm text-gray-400 mt-1">Gérez les comptes de vos employés</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal('creer')}>
-          <Plus size={16} /> Inviter un utilisateur
+        <button onClick={() => setModaleF({})}
+          className="flex items-center gap-2 px-4 py-2.5 gradient-brand text-white font-semibold text-sm rounded-xl transition-all shadow-lg shadow-blue-200 hover:opacity-90 active:scale-95">
+          <Plus size={15}/> Nouveau compte
         </button>
       </div>
 
-      <div className="card">
-        {isLoading ? (
-          <div className="p-12 text-center"><Loader size={24} className="animate-spin text-indigo-500 mx-auto" /></div>
-        ) : utilisateurs.length === 0 ? (
-          <div className="p-12 text-center">
-            <Users size={36} className="text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-500">Aucun utilisateur encore</p>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-5 animate-fade-up-2">
+        {[
+          { label:'Total comptes',  value:data?.length || 0,                        color:'text-blue-600'  },
+          { label:'Actifs',         value:data?.filter(u => u.actif).length || 0,   color:'text-green-600' },
+          { label:'Désactivés',     value:data?.filter(u => !u.actif).length || 0,  color:'text-red-500'   },
+        ].map(s => (
+          <div key={s.label} className="card-neu p-4 text-center">
+            <p className={`font-syne text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-gray-400 mt-1">{s.label}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Tableau */}
+      <div className="card-neu overflow-hidden animate-fade-up-3">
+        {isLoading ? (
+          <div className="flex justify-center py-16"><div className="w-7 h-7 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"/></div>
         ) : (
-          <div className="divide-y divide-slate-50">
-            {utilisateurs.map(u => (
-              <div key={u._id} className="flex items-center gap-4 px-5 py-4">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm flex-shrink-0">
-                  {u.nom?.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-slate-800">{u.nom}</p>
-                    {u._id === moi?._id && <span className="text-[10px] badge badge-blue">Vous</span>}
-                  </div>
-                  <p className="text-sm text-slate-400">{u.email}</p>
-                </div>
-                <span className={`badge ${roleBadgeCls(u.role)}`}>{roleLabel(u.role)}</span>
-                <span className={`badge ${u.actif ? 'badge-green' : 'badge-gray'}`}>{u.actif ? 'Actif' : 'Inactif'}</span>
-                <p className="text-xs text-slate-400 hidden sm:block">Depuis {formatDate(u.createdAt)}</p>
-                {u._id !== moi?._id && (
-                  <div className="flex gap-1">
-                    <button className="btn-icon text-slate-400 hover:text-indigo-600" onClick={() => setModal(u)}>
-                      <Edit2 size={14} />
-                    </button>
-                    <button className="btn-icon text-slate-400 hover:text-red-500" onClick={() => setConfirm(u)}>
-                      <UserX size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['Employé','Email','Rôle','Statut','Dernière connexion',''].map(h => (
+                    <th key={h} className="text-left px-5 py-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data?.map(u => (
+                  <tr key={u._id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors group">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full gradient-brand flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                          {u.nom?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{u.nom}</p>
+                          {u._id === moi?._id && <p className="text-[10px] text-blue-500 font-medium">C'est vous</p>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-gray-500">{u.email}</td>
+                    <td className="px-5 py-3.5"><RoleBadge role={u.role}/></td>
+                    <td className="px-5 py-3.5">
+                      <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${u.actif ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
+                        {u.actif ? '● Actif' : '● Désactivé'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-xs text-gray-400">
+                      {u.derniereConnexion ? new Date(u.derniereConnexion).toLocaleDateString('fr-FR') : 'Jamais'}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setModaleF(u)} title="Modifier"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"><Pencil size={14}/></button>
+                        <button onClick={() => setModalePwd(u)} title="Changer mot de passe"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-all"><KeyRound size={14}/></button>
+                        {u._id !== moi?._id && (
+                          <button onClick={() => toggleMutation.mutate(u._id)} title={u.actif ? 'Désactiver' : 'Activer'}
+                            className={`p-1.5 rounded-lg transition-all ${u.actif ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
+                            {u.actif ? <UserX size={14}/> : <UserCheck size={14}/>}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {modal && (
-        <UserModal
-          initial={modal !== 'creer' ? modal : null}
-          onClose={() => setModal(null)}
-          loading={creerMut.isPending || modifMut.isPending}
-          onSubmit={b => modal === 'creer'
-            ? creerMut.mutate(b)
-            : modifMut.mutate({ id: modal._id, b })
-          }
-        />
-      )}
-
-      {confirm && (
-        <div className="modal-overlay">
-          <div className="modal max-w-sm">
-            <div className="modal-body text-center py-6">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
-                <UserX size={20} className="text-red-500" />
-              </div>
-              <p className="font-bold text-slate-900 mb-1">Désactiver {confirm.nom} ?</p>
-              <p className="text-sm text-slate-500">Il ne pourra plus accéder à l'application.</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setConfirm(null)}>Annuler</button>
-              <button className="btn-danger" onClick={() => suppMut.mutate(confirm._id)} disabled={suppMut.isPending}>
-                {suppMut.isPending && <Loader size={14} className="animate-spin" />} Désactiver
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {modaleF !== null && <ModaleUtilisateur user={modaleF._id ? modaleF : null} onClose={() => setModaleF(null)}/>}
+      {modalePwd && <ModaleMotDePasse user={modalePwd} onClose={() => setModalePwd(null)}/>}
     </div>
   );
 }
