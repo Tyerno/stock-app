@@ -13,7 +13,10 @@ const app = express();
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-app.use(cors({ origin: '*', credentials: false }));
+const origines = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((o) => o.trim());
+app.use(cors({ origin: origines, credentials: false }));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 const limiterGlobal = rateLimit({
