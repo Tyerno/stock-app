@@ -8,6 +8,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ─── Sécurité — Headers HTTP ──────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
