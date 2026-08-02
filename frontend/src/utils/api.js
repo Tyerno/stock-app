@@ -14,7 +14,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url || '';
+    const estRouteAuthPublique = url.includes('/auth/connexion');
+
+    if (error.response?.status === 401 && !estRouteAuthPublique) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/connexion';

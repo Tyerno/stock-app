@@ -3,17 +3,6 @@ const { User } = require('../models');
 
 const genToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '30d' });
 
-exports.inscription = async (req, res) => {
-  try {
-    const { nom, email, motDePasse, role } = req.body;
-    const user = await User.create({ nom, email, motDePasse, role });
-    res.status(201).json({ success: true, token: genToken(user._id), data: { id: user._id, nom: user.nom, email: user.email, role: user.role } });
-  } catch (err) {
-    if (err.code === 11000) return res.status(400).json({ success: false, message: 'Email déjà utilisé' });
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
-
 exports.connexion = async (req, res) => {
   try {
     const { email, motDePasse } = req.body;

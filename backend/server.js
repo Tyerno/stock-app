@@ -82,6 +82,10 @@ app.use((err, req, res, next) => {
 // ─── Connexion MongoDB ────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Serveur démarré sur le port ${PORT}`);
+});
+
 mongoose
   .connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 10000,
@@ -97,12 +101,7 @@ mongoose
     // Tester le service email au démarrage
     const emailService = require('./services/emailService');
     emailService.testerConnexion();
-
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Serveur démarré sur le port ${PORT}`);
-    });
   })
   .catch((err) => {
     console.error('❌ Erreur MongoDB :', err.message);
-    process.exit(1);
   });
