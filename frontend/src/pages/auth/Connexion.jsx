@@ -64,22 +64,6 @@ export default function Connexion() {
               {loading ? 'Connexion…' : 'Se connecter'}
             </button>
           </form>
-
-          {/* Comptes démo */}
-          <div className="mt-6 p-4 bg-slate-50 rounded-xl text-xs text-slate-500 space-y-1">
-            <p className="font-semibold text-slate-600 mb-2">Comptes de démonstration :</p>
-            {[
-              ['Admin',        'admin@alpha.gn',   'admin123'],
-              ['Gestionnaire', 'gestion@alpha.gn', 'pass123'],
-            ].map(([label, email, mdp]) => (
-              <button key={email} type="button"
-                onClick={() => setForm({ email, motDePasse: mdp })}
-                className="w-full text-left hover:bg-white p-2 rounded-lg transition-colors flex justify-between items-center group">
-                <span className="font-medium text-slate-700">{label}</span>
-                <span className="text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px]">Utiliser →</span>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>

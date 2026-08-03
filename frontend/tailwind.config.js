@@ -3,7 +3,10 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
-      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        syne: ['Syne', 'Inter', 'system-ui', 'sans-serif'],
+      },
       animation: {
         'fade-in':    'fadeIn 0.3s ease-out',
         'slide-up':   'slideUp 0.4s ease-out',

@@ -9,6 +9,10 @@ import toast from 'react-hot-toast';
 
 import api from '../../utils/api';
 import { fmt, fmtDate } from '../../utils/format';
+import Modal from '../../components/ui/Modal';
+import Table from '../../components/ui/Table';
+import EmptyState from '../../components/ui/EmptyState';
+import { Spinner } from '../../components/ui/LoadingState';
 
 // ─── Impression reçu ──────────────────────────────────────────────────────────
 function imprimerRecu(vente) {
@@ -79,10 +83,10 @@ function SuccessModal({ vente, onClose, onPrint }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-scale-in">
+    <Modal open onClose={onClose} size="sm" hideHeader>
+      <div className="-m-5">
         {/* Header animé */}
-        <div className="bg-gradient-to-br from-emerald-400 to-green-500 p-8 text-center relative overflow-hidden">
+        <div className="bg-gradient-to-br from-emerald-400 to-green-500 p-8 text-center relative overflow-hidden rounded-t-2xl">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="absolute w-2 h-2 bg-white/30 rounded-full animate-bounce"
               style={{ left:`${10+i*16}%`, top:`${20+Math.sin(i)*30}%`, animationDelay:`${i*0.15}s` }}/>
@@ -104,26 +108,26 @@ function SuccessModal({ vente, onClose, onPrint }) {
               { label:'Total',    value: `${fmt(vente.totalNet)} GNF` },
               { label:'Monnaie',  value: `${fmt(vente.monnaie)} GNF` },
             ].map(item => (
-              <div key={item.label} className="bg-gray-50 rounded-2xl p-3 text-center border border-gray-100">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">{item.label}</p>
-                <p className="text-sm font-bold text-gray-800 truncate">{item.value}</p>
+              <div key={item.label} className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">{item.label}</p>
+                <p className="text-sm font-bold text-slate-800 truncate">{item.value}</p>
               </div>
             ))}
           </div>
           <div className="flex gap-3">
             <button onClick={() => { onPrint(vente); onClose(); }}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-700 transition-all active:scale-95">
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-700 transition-all active:scale-95">
               <Printer size={15}/> Imprimer
             </button>
             <button onClick={onClose}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl gradient-brand text-white font-semibold text-sm hover:opacity-90 transition-all shadow-md shadow-blue-200 active:scale-95">
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl gradient-brand text-white font-semibold text-sm hover:opacity-90 transition-all shadow-md shadow-indigo-200 active:scale-95">
               <Zap size={15}/> Nouvelle vente
             </button>
           </div>
-          <p className="text-center text-[10px] text-gray-400 mt-3">Fermeture automatique dans 8 secondes</p>
+          <p className="text-center text-[10px] text-slate-400 mt-3">Fermeture automatique dans 8 secondes</p>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -143,10 +147,10 @@ function ProduitCard({ produit, onAjouter, quantitePanier }) {
     <div onClick={handleClick}
       className={`relative rounded-2xl border-2 p-4 transition-all duration-200 select-none
         ${isRupture
-          ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+          ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
           : quantitePanier > 0
-            ? 'border-blue-400 bg-blue-50 shadow-lg shadow-blue-100 cursor-pointer'
-            : 'border-gray-100 bg-white hover:border-blue-200 hover:shadow-md hover:shadow-blue-50 hover:-translate-y-0.5 cursor-pointer active:scale-95'
+            ? 'border-indigo-400 bg-indigo-50 shadow-lg shadow-indigo-100 cursor-pointer'
+            : 'border-slate-100 bg-white hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-50 hover:-translate-y-0.5 cursor-pointer active:scale-95'
         } ${pulse ? 'scale-95' : ''}`}>
 
       {/* Badge panier */}
@@ -167,19 +171,19 @@ function ProduitCard({ produit, onAjouter, quantitePanier }) {
       </div>
 
       {/* Nom */}
-      <p className="text-xs font-bold text-gray-800 leading-tight mb-1 pr-2 line-clamp-2 min-h-[2rem]">
+      <p className="text-xs font-bold text-slate-800 leading-tight mb-1 pr-2 line-clamp-2 min-h-[2rem]">
         {produit.nom}
       </p>
 
       {produit.reference && (
-        <p className="text-[9px] font-mono text-gray-400 mb-2">{produit.reference}</p>
+        <p className="text-[9px] font-mono text-slate-400 mb-2">{produit.reference}</p>
       )}
 
       {/* Prix + stock */}
       <div className="flex items-end justify-between mt-2">
         <div>
-          <p className="text-sm font-bold text-blue-600 leading-none">{fmt(produit.prixVente)}</p>
-          <p className="text-[9px] text-gray-400 mt-0.5">GNF / {produit.unite}</p>
+          <p className="text-sm font-bold text-indigo-600 leading-none">{fmt(produit.prixVente)}</p>
+          <p className="text-[9px] text-slate-400 mt-0.5">GNF / {produit.unite}</p>
         </div>
         <p className={`text-[9px] font-bold px-2 py-0.5 rounded-full
           ${isRupture ? 'bg-red-100 text-red-500'
@@ -192,8 +196,8 @@ function ProduitCard({ produit, onAjouter, quantitePanier }) {
       {/* Bouton + */}
       {!isRupture && (
         <div className={`absolute bottom-3 right-3 w-7 h-7 rounded-xl flex items-center justify-center transition-all
-          ${quantitePanier > 0 ? 'gradient-brand shadow-md shadow-blue-200' : 'bg-gray-100'}`}>
-          <Plus size={13} className={quantitePanier > 0 ? 'text-white' : 'text-gray-500'}/>
+          ${quantitePanier > 0 ? 'gradient-brand shadow-md shadow-indigo-200' : 'bg-slate-100'}`}>
+          <Plus size={13} className={quantitePanier > 0 ? 'text-white' : 'text-slate-500'}/>
         </div>
       )}
     </div>
@@ -203,37 +207,37 @@ function ProduitCard({ produit, onAjouter, quantitePanier }) {
 // ─── Ligne panier ─────────────────────────────────────────────────────────────
 function LignePanier({ ligne, onUpdate, onRemove }) {
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-gray-100 last:border-0 group animate-fade-up">
+    <div className="flex items-center gap-3 py-3 border-b border-slate-100 last:border-0 group animate-fade-up">
       {/* Nom + prix */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 truncate">{ligne.nomProduit}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{fmt(ligne.prixUnitaire)} GNF / {ligne.unite}</p>
+        <p className="text-sm font-semibold text-slate-800 truncate">{ligne.nomProduit}</p>
+        <p className="text-xs text-slate-400 mt-0.5">{fmt(ligne.prixUnitaire)} GNF / {ligne.unite}</p>
       </div>
 
       {/* Contrôle quantité */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 flex-shrink-0">
+      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 flex-shrink-0">
         <button onClick={() => onUpdate(ligne.produitId, 'quantite', Math.max(0.5, ligne.quantite - 1))}
           className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center hover:bg-red-50 transition-all active:scale-90">
-          <Minus size={11} className="text-gray-600"/>
+          <Minus size={11} className="text-slate-600"/>
         </button>
         <input type="number" min="0.01" step="any" value={ligne.quantite}
           onChange={e => onUpdate(ligne.produitId, 'quantite', Number(e.target.value))}
-          className="w-10 text-center text-sm font-bold text-gray-800 bg-transparent outline-none"/>
+          className="w-10 text-center text-sm font-bold text-slate-800 bg-transparent outline-none"/>
         <button onClick={() => onUpdate(ligne.produitId, 'quantite', ligne.quantite + 1)}
-          className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center hover:bg-blue-50 transition-all active:scale-90">
-          <Plus size={11} className="text-gray-600"/>
+          className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center hover:bg-indigo-50 transition-all active:scale-90">
+          <Plus size={11} className="text-slate-600"/>
         </button>
       </div>
 
       {/* Sous-total */}
       <div className="text-right flex-shrink-0 w-24">
-        <p className="text-sm font-bold text-gray-900">{fmt(ligne.quantite * ligne.prixUnitaire)}</p>
-        <p className="text-[10px] text-gray-400">GNF</p>
+        <p className="text-sm font-bold text-slate-900">{fmt(ligne.quantite * ligne.prixUnitaire)}</p>
+        <p className="text-[10px] text-slate-400">GNF</p>
       </div>
 
       {/* Supprimer */}
       <button onClick={() => onRemove(ligne.produitId)}
-        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
+        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
         <Trash2 size={13}/>
       </button>
     </div>
@@ -260,17 +264,17 @@ function HistoriqueVentes() {
 
       {/* Stat + filtres */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="sm:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="sm:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full">
-            <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">Du</label>
+            <label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Du</label>
             <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
-              className="flex-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 transition-all"/>
-            <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">Au</label>
+              className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400 transition-all"/>
+            <label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Au</label>
             <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
-              className="flex-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 transition-all"/>
+              className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400 transition-all"/>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-md shadow-blue-200 flex flex-col items-center justify-center text-center">
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-5 text-white shadow-md shadow-indigo-200 flex flex-col items-center justify-center text-center">
           <p className="text-[10px] font-bold opacity-70 uppercase tracking-wider mb-1">CA Total</p>
           <p className="font-syne text-2xl font-bold">{fmt(Math.round(totalCA/1000))}k</p>
           <p className="text-xs opacity-70">GNF · {data?.data?.length || 0} vente(s)</p>
@@ -278,68 +282,45 @@ function HistoriqueVentes() {
       </div>
 
       {/* Table */}
-      <div className="card-neu overflow-hidden">
-        {isLoading ? (
-          <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"/>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  {['N° Vente','Client','Articles','Total','Paiement','Vendeur','Date',''].map(h => (
-                    <th key={h} className="text-left px-4 py-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data?.data?.length === 0 ? (
-                  <tr><td colSpan={8}>
-                    <div className="flex flex-col items-center py-16 text-gray-300">
-                      <Receipt size={32} className="mb-3 opacity-30"/>
-                      <p className="text-sm">Aucune vente sur cette période</p>
-                    </div>
-                  </td></tr>
-                ) : data?.data?.map(v => (
-                  <tr key={v._id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors group">
-                    <td className="px-4 py-3.5 text-sm font-mono font-bold text-blue-600">{v.numero}</td>
-                    <td className="px-4 py-3.5 text-sm text-gray-700">{v.client?.nom || 'Comptoir'}</td>
-                    <td className="px-4 py-3.5 text-xs text-gray-400">{v.lignes.length} art.</td>
-                    <td className="px-4 py-3.5 text-sm font-bold font-mono text-gray-800 whitespace-nowrap">{fmt(v.totalNet)} GNF</td>
+      <Table
+        columns={['N° Vente','Client','Articles','Total','Paiement','Vendeur','Date','']}
+        loading={isLoading}
+        isEmpty={data?.data?.length === 0}
+        emptyState={<EmptyState icon={Receipt} title="Aucune vente sur cette période" />}
+      >
+        {data?.data?.map(v => (
+                  <tr key={v._id} className="border-b border-slate-50 hover:bg-indigo-50/30 transition-colors group">
+                    <td className="px-4 py-3.5 text-sm font-mono font-bold text-indigo-600">{v.numero}</td>
+                    <td className="px-4 py-3.5 text-sm text-slate-700">{v.client?.nom || 'Comptoir'}</td>
+                    <td className="px-4 py-3.5 text-xs text-slate-400">{v.lignes.length} art.</td>
+                    <td className="px-4 py-3.5 text-sm font-bold font-mono text-slate-800 whitespace-nowrap">{fmt(v.totalNet)} GNF</td>
                     <td className="px-4 py-3.5">
                       <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap
                         ${v.modePaiement === 'especes' ? 'bg-green-50 text-green-700'
-                          : v.modePaiement === 'mobile_money' ? 'bg-blue-50 text-blue-700'
+                          : v.modePaiement === 'mobile_money' ? 'bg-indigo-50 text-indigo-700'
                           : 'bg-purple-50 text-purple-700'}`}>
                         {v.modePaiement === 'mobile_money' ? '📱 Mobile' : v.modePaiement === 'mixte' ? '🔀 Mixte' : '💵 Espèces'}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-xs text-gray-400">{v.vendeur?.nom}</td>
-                    <td className="px-4 py-3.5 text-xs text-gray-400 whitespace-nowrap">{fmtDate(v.createdAt)}</td>
+                    <td className="px-4 py-3.5 text-xs text-slate-400">{v.vendeur?.nom}</td>
+                    <td className="px-4 py-3.5 text-xs text-slate-400 whitespace-nowrap">{fmtDate(v.createdAt)}</td>
                     <td className="px-4 py-3.5">
                       <button onClick={() => setRecuVente(v)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:gradient-brand hover:text-white transition-all whitespace-nowrap">
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:gradient-brand hover:text-white transition-all whitespace-nowrap">
                         <Printer size={11}/> Reçu
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        ))}
+      </Table>
 
       {/* Modal aperçu reçu */}
       {recuVente && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
-          onClick={() => setRecuVente(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-scale-in p-6 text-center"
-            onClick={e => e.stopPropagation()}>
-            <p className="font-syne text-lg font-bold text-gray-900 mb-1">{recuVente.numero}</p>
-            <p className="text-2xl font-bold text-blue-600 mb-1">{fmt(recuVente.totalNet)} GNF</p>
-            <p className="text-sm text-gray-500 mb-4">
+        <Modal open onClose={() => setRecuVente(null)} size="sm" hideHeader>
+          <div className="text-center">
+            <p className="font-syne text-lg font-bold text-slate-900 mb-1">{recuVente.numero}</p>
+            <p className="text-2xl font-bold text-indigo-600 mb-1">{fmt(recuVente.totalNet)} GNF</p>
+            <p className="text-sm text-slate-500 mb-4">
               {recuVente.client?.nom || 'Comptoir'} · {fmtDate(recuVente.createdAt)}
             </p>
             <div className="flex gap-3">
@@ -348,12 +329,12 @@ function HistoriqueVentes() {
                 <Printer size={14}/> Imprimer
               </button>
               <button onClick={() => setRecuVente(null)}
-                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm hover:bg-gray-200 transition-all">
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-semibold text-sm hover:bg-slate-200 transition-all">
                 Fermer
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -468,29 +449,29 @@ export default function Ventes() {
   ].filter((v, i, a) => v > 0 && a.indexOf(v) === i).slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen bg-slate-100 flex flex-col">
 
       {/* ── Header ── */}
-      <div className="bg-white border-b border-gray-100 shadow-sm sticky top-14 z-30">
+      <div className="bg-white border-b border-slate-100 shadow-sm sticky top-14 z-30">
         <div className="px-4 lg:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center shadow-md shadow-blue-200 flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center shadow-md shadow-indigo-200 flex-shrink-0">
               <ShoppingCart size={16} className="text-white"/>
             </div>
             <div className="hidden sm:block">
-              <h1 className="font-syne text-base font-bold text-gray-900 leading-none">Point de Vente</h1>
-              <p className="text-[10px] text-gray-400 mt-0.5">Caisse enregistreuse</p>
+              <h1 className="font-syne text-base font-bold text-slate-900 leading-none">Point de Vente</h1>
+              <p className="text-[10px] text-slate-400 mt-0.5">Caisse enregistreuse</p>
             </div>
           </div>
 
           {/* Onglets */}
-          <div className="flex bg-gray-100 rounded-2xl p-1">
+          <div className="flex bg-slate-100 rounded-2xl p-1">
             {[
               { id:'caisse',     label:'Caisse',     Icon:ShoppingCart },
               { id:'historique', label:'Historique', Icon:Receipt },
             ].map(o => (
               <button key={o.id} onClick={() => setOnglet(o.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${onglet === o.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${onglet === o.id ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
                 <o.Icon size={13}/><span className="hidden sm:inline">{o.label}</span>
               </button>
             ))}
@@ -499,7 +480,7 @@ export default function Ventes() {
           {/* Bouton panier mobile */}
           {onglet === 'caisse' && (
             <button onClick={() => setPanierOuvert(true)}
-              className="lg:hidden relative flex items-center gap-2 px-3 py-2 gradient-brand text-white rounded-xl text-xs font-bold shadow-md shadow-blue-200">
+              className="lg:hidden relative flex items-center gap-2 px-3 py-2 gradient-brand text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-200">
               <ShoppingCart size={14}/>
               {nbPanier > 0 && (
                 <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">
@@ -524,9 +505,9 @@ export default function Ventes() {
 
             {/* Recherche */}
             <div className="relative">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"/>
               <input
-                className="w-full bg-white border border-gray-200 text-gray-800 text-sm rounded-2xl pl-10 pr-4 py-3 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-gray-400 shadow-sm"
+                className="w-full bg-white border border-slate-200 text-slate-800 text-sm rounded-2xl pl-10 pr-4 py-3 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 shadow-sm"
                 placeholder="Rechercher un produit par nom ou référence…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -536,13 +517,13 @@ export default function Ventes() {
             {/* Filtres catégories */}
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 flex-shrink-0">
               <button onClick={() => setCatFiltre('')}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${!catFiltre ? 'gradient-brand text-white shadow-md shadow-blue-200' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${!catFiltre ? 'gradient-brand text-white shadow-md shadow-indigo-200' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}>
                 Tous
               </button>
               {categories?.map(c => (
                 <button key={c._id} onClick={() => setCatFiltre(catFiltre === c._id ? '' : c._id)}
                   className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap
-                    ${catFiltre === c._id ? 'text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                    ${catFiltre === c._id ? 'text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}
                   style={catFiltre === c._id ? { background: c.couleur } : {}}>
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.couleur }}/>
                   {c.nom}
@@ -553,14 +534,9 @@ export default function Ventes() {
             {/* Grille produits */}
             <div className="lg:flex-1 lg:overflow-y-auto scrollbar-hide">
               {!produitsData ? (
-                <div className="flex justify-center pt-16">
-                  <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"/>
-                </div>
+                <div className="flex justify-center pt-16"><Spinner /></div>
               ) : produitsData.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-gray-300">
-                  <Package size={36} className="mb-3 opacity-30"/>
-                  <p className="text-sm">Aucun produit trouvé</p>
-                </div>
+                <EmptyState icon={Package} title="Aucun produit trouvé" />
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-24 lg:pb-6">
                   {produitsData.map(p => (
@@ -577,13 +553,13 @@ export default function Ventes() {
           </div>
 
           {/* ── Colonne droite : Panier desktop ── */}
-          <div className="hidden lg:flex w-96 flex-shrink-0 flex-col border-l border-gray-200 bg-white overflow-hidden">
+          <div className="hidden lg:flex w-96 flex-shrink-0 flex-col border-l border-slate-200 bg-white overflow-hidden">
 
             {/* En-tête panier */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
-                <ShoppingCart size={16} className="text-blue-500"/>
-                <span className="font-syne font-bold text-gray-800">Panier</span>
+                <ShoppingCart size={16} className="text-indigo-500"/>
+                <span className="font-syne font-bold text-slate-800">Panier</span>
                 {panier.length > 0 && (
                   <span className="text-[10px] gradient-brand text-white px-1.5 py-0.5 rounded-full font-bold">
                     {panier.length}
@@ -601,7 +577,7 @@ export default function Ventes() {
             {/* Lignes panier */}
             <div className="flex-1 overflow-y-auto scrollbar-hide px-5">
               {panier.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 text-gray-300">
+                <div className="flex flex-col items-center justify-center h-40 text-slate-300">
                   <ShoppingCart size={28} className="mb-2 opacity-30"/>
                   <p className="text-sm text-center">Cliquez sur un produit<br/>pour l'ajouter</p>
                 </div>
@@ -614,20 +590,20 @@ export default function Ventes() {
 
             {/* Zone paiement */}
             {panier.length > 0 && (
-              <div className="border-t border-gray-100 p-5 flex flex-col gap-4 bg-gray-50">
+              <div className="border-t border-slate-100 p-5 flex flex-col gap-4 bg-slate-50">
 
                 {/* Client */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">👤 Client</label>
-                  <input className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-blue-400 transition-all placeholder:text-gray-400"
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">👤 Client</label>
+                  <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 transition-all placeholder:text-slate-400"
                     placeholder="Nom du client" value={client.nom} onChange={e => setClient(c => ({ ...c, nom:e.target.value }))}/>
-                  <input className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-blue-400 transition-all placeholder:text-gray-400"
+                  <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 transition-all placeholder:text-slate-400"
                     placeholder="Téléphone" value={client.telephone} onChange={e => setClient(c => ({ ...c, telephone:e.target.value }))}/>
                 </div>
 
                 {/* Mode paiement */}
                 <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">💳 Paiement</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">💳 Paiement</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { id:'especes',      label:'Espèces', Icon:CreditCard },
@@ -636,7 +612,7 @@ export default function Ventes() {
                     ].map(m => (
                       <button key={m.id} onClick={() => setMode(m.id)}
                         className={`flex flex-col items-center gap-1.5 py-2.5 rounded-xl text-[10px] font-bold transition-all
-                          ${modePaiement === m.id ? 'gradient-brand text-white shadow-md shadow-blue-200' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                          ${modePaiement === m.id ? 'gradient-brand text-white shadow-md shadow-indigo-200' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                         <m.Icon size={15}/>{m.label}
                       </button>
                     ))}
@@ -646,20 +622,20 @@ export default function Ventes() {
                 {/* Remise + monnaie */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                       <Tag size={10} className="inline mr-1"/>Remise
                     </label>
                     <input type="number" min="0" placeholder="0 GNF" value={remise}
                       onChange={e => setRemise(e.target.value)}
-                      className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-blue-400 transition-all"/>
+                      className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 transition-all"/>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                       💰 Reçu
                     </label>
                     <input type="number" min="0" placeholder={fmt(totalNet)} value={montantRecu}
                       onChange={e => setMontantRecu(e.target.value)}
-                      className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-blue-400 transition-all"/>
+                      className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 transition-all"/>
                   </div>
                 </div>
 
@@ -669,7 +645,7 @@ export default function Ventes() {
                     {suggestions.map(v => (
                       <button key={v} onClick={() => setMontantRecu(v.toString())}
                         className={`flex-1 min-w-0 py-1.5 rounded-xl text-[10px] font-bold transition-all truncate
-                          ${Number(montantRecu) === v ? 'gradient-brand text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'}`}>
+                          ${Number(montantRecu) === v ? 'gradient-brand text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
                         {fmt(v)}
                       </button>
                     ))}
@@ -680,7 +656,7 @@ export default function Ventes() {
                 {montantRecu && (
                   <div className={`flex items-center justify-between px-4 py-3 rounded-xl border font-bold
                     ${monnaie >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-                    <span className="text-xs text-gray-600">Monnaie à rendre</span>
+                    <span className="text-xs text-slate-600">Monnaie à rendre</span>
                     <span className={`text-lg font-mono ${monnaie >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                       {fmt(monnaie)} GNF
                     </span>
@@ -688,10 +664,10 @@ export default function Ventes() {
                 )}
 
                 {/* Total + bouton */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-4">
+                <div className="bg-white rounded-2xl border border-slate-100 p-4">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-gray-500">Sous-total</span>
-                    <span className="text-sm font-mono text-gray-700">{fmt(totalHT)} GNF</span>
+                    <span className="text-sm text-slate-500">Sous-total</span>
+                    <span className="text-sm font-mono text-slate-700">{fmt(totalHT)} GNF</span>
                   </div>
                   {Number(remise) > 0 && (
                     <div className="flex justify-between items-center mb-1">
@@ -699,12 +675,12 @@ export default function Ventes() {
                       <span className="text-sm font-mono text-red-500">- {fmt(remise)} GNF</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center pt-2 border-t border-gray-100 mb-4">
-                    <span className="font-bold text-gray-900">Total à payer</span>
-                    <span className="font-syne text-xl font-bold text-blue-600">{fmt(totalNet)} GNF</span>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100 mb-4">
+                    <span className="font-bold text-slate-900">Total à payer</span>
+                    <span className="font-syne text-xl font-bold text-indigo-600">{fmt(totalNet)} GNF</span>
                   </div>
                   <button onClick={validerVente} disabled={mutation.isPending}
-                    className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white hover:opacity-90 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
+                    className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white hover:opacity-90 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
                     {mutation.isPending
                       ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Enregistrement…</>
                       : <><CheckCircle size={20}/> Valider la vente</>
@@ -723,13 +699,13 @@ export default function Ventes() {
               <div className="relative w-full max-w-sm bg-white flex flex-col shadow-2xl animate-slide-in h-full overflow-hidden">
 
                 {/* Header */}
-                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 flex-shrink-0">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 flex-shrink-0">
                   <div className="flex items-center gap-2">
-                    <ShoppingCart size={16} className="text-blue-500"/>
-                    <span className="font-syne font-bold text-gray-800">Panier ({panier.length})</span>
+                    <ShoppingCart size={16} className="text-indigo-500"/>
+                    <span className="font-syne font-bold text-slate-800">Panier ({panier.length})</span>
                   </div>
                   <button onClick={() => setPanierOuvert(false)}
-                    className="p-2 rounded-xl hover:bg-gray-200 text-gray-500 transition-all">
+                    className="p-2 rounded-xl hover:bg-slate-200 text-slate-500 transition-all">
                     <X size={16}/>
                   </button>
                 </div>
@@ -737,7 +713,7 @@ export default function Ventes() {
                 {/* Lignes */}
                 <div className="flex-1 overflow-y-auto px-5 scrollbar-hide">
                   {panier.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-40 text-gray-300">
+                    <div className="flex flex-col items-center justify-center h-40 text-slate-300">
                       <ShoppingCart size={28} className="mb-2 opacity-30"/>
                       <p className="text-sm">Panier vide</p>
                     </div>
@@ -748,9 +724,9 @@ export default function Ventes() {
 
                 {/* Paiement mobile */}
                 {panier.length > 0 && (
-                  <div className="border-t border-gray-100 p-5 flex flex-col gap-3 bg-gray-50 overflow-y-auto flex-shrink-0">
+                  <div className="border-t border-slate-100 p-5 flex flex-col gap-3 bg-slate-50 overflow-y-auto flex-shrink-0">
                     <div className="flex flex-col gap-2">
-                      <input className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-blue-400 transition-all"
+                      <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 transition-all"
                         placeholder="Nom du client" value={client.nom} onChange={e => setClient(c => ({ ...c, nom:e.target.value }))}/>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
@@ -761,7 +737,7 @@ export default function Ventes() {
                       ].map(m => (
                         <button key={m.id} onClick={() => setMode(m.id)}
                           className={`flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all
-                            ${modePaiement === m.id ? 'gradient-brand text-white shadow-md' : 'bg-white border border-gray-200 text-gray-500'}`}>
+                            ${modePaiement === m.id ? 'gradient-brand text-white shadow-md' : 'bg-white border border-slate-200 text-slate-500'}`}>
                           <m.Icon size={14}/>{m.label}
                         </button>
                       ))}
@@ -769,10 +745,10 @@ export default function Ventes() {
                     <div className="grid grid-cols-2 gap-2">
                       <input type="number" min="0" placeholder="Remise GNF" value={remise}
                         onChange={e => setRemise(e.target.value)}
-                        className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-blue-400"/>
+                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400"/>
                       <input type="number" min="0" placeholder={`Reçu: ${fmt(totalNet)}`} value={montantRecu}
                         onChange={e => setMontantRecu(e.target.value)}
-                        className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-blue-400"/>
+                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400"/>
                     </div>
                     {montantRecu && (
                       <div className={`flex justify-between px-3 py-2.5 rounded-xl border font-bold text-sm
@@ -781,11 +757,11 @@ export default function Ventes() {
                       </div>
                     )}
                     <div className="flex justify-between items-center py-2">
-                      <span className="font-bold text-gray-900">Total</span>
-                      <span className="font-syne text-xl font-bold text-blue-600">{fmt(totalNet)} GNF</span>
+                      <span className="font-bold text-slate-900">Total</span>
+                      <span className="font-syne text-xl font-bold text-indigo-600">{fmt(totalNet)} GNF</span>
                     </div>
                     <button onClick={validerVente} disabled={mutation.isPending}
-                      className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
+                      className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white shadow-lg shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
                       {mutation.isPending
                         ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Enregistrement…</>
                         : <><CheckCircle size={20}/> Valider</>

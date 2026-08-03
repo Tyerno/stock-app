@@ -74,7 +74,6 @@
 
   /* Dégradé de marque, cohérent avec btn-primary */
   .gradient-brand { @apply bg-gradient-to-r from-indigo-600 to-indigo-500; }
-  .text-gradient-brand { @apply bg-gradient-to-r from-indigo-600 to-indigo-500 bg-clip-text text-transparent; }
 
   /* Squelette de chargement (shimmer) */
   .skeleton { @apply bg-slate-200 rounded-lg relative overflow-hidden; }
