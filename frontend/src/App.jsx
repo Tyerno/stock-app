@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -9,29 +10,33 @@ import Layout from './components/layout/Layout';
 // Auth
 import Connexion from './pages/auth/Connexion';
 
-// Pages
-import Dashboard    from './pages/dashboard/Dashboard';
-import Produits     from './pages/produits/Produits';
-import Ventes       from './pages/ventes/Ventes';
-import NouvelleVente from './pages/ventes/NouvelleVente';
-import Mouvements   from './pages/mouvements/Mouvements';
-import Alertes      from './pages/alertes/Alertes';
-import Utilisateurs from './pages/utilisateurs/Utilisateurs';
-import Parametres   from './pages/parametres/Parametres';
-import Statistiques from './pages/statistiques/Statistiques';
-import Previsions   from './pages/previsions/Previsions';
+// Pages (chargées à la demande, par route)
+const Dashboard     = lazy(() => import('./pages/dashboard/Dashboard'));
+const Produits      = lazy(() => import('./pages/produits/Produits'));
+const Ventes         = lazy(() => import('./pages/ventes/Ventes'));
+const NouvelleVente  = lazy(() => import('./pages/ventes/NouvelleVente'));
+const Mouvements     = lazy(() => import('./pages/mouvements/Mouvements'));
+const Alertes        = lazy(() => import('./pages/alertes/Alertes'));
+const Utilisateurs   = lazy(() => import('./pages/utilisateurs/Utilisateurs'));
+const Parametres     = lazy(() => import('./pages/parametres/Parametres'));
+const Statistiques   = lazy(() => import('./pages/statistiques/Statistiques'));
+const Previsions     = lazy(() => import('./pages/previsions/Previsions'));
 
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
-function ProtectedRoute({ children, roles }) {
-  const { user, loading } = useAuth();
-  if (loading) return (
+function PageLoader() {
+  return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
     </div>
   );
+}
+
+function ProtectedRoute({ children, roles }) {
+  const { user, loading } = useAuth();
+  if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/connexion" replace />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
@@ -41,6 +46,7 @@ function AppRoutes() {
   const { user } = useAuth();
 
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Public */}
       <Route path="/connexion" element={!user ? <Connexion /> : <Navigate to="/" />} />
@@ -77,6 +83,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
+    </Suspense>
   );
 }
 
