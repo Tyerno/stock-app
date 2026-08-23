@@ -21,6 +21,7 @@ const Utilisateurs   = lazy(() => import('./pages/utilisateurs/Utilisateurs'));
 const Parametres     = lazy(() => import('./pages/parametres/Parametres'));
 const Statistiques   = lazy(() => import('./pages/statistiques/Statistiques'));
 const Previsions     = lazy(() => import('./pages/previsions/Previsions'));
+const Dettes         = lazy(() => import('./pages/dettes/Dettes'));
 
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -66,6 +67,7 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="mouvements"   element={<Mouvements />} />
+        <Route path="dettes"       element={<Dettes />} />
         <Route path="alertes"      element={<Alertes />} />
         <Route path="statistiques" element={<Statistiques />} />
         <Route path="previsions"   element={<Previsions />} />

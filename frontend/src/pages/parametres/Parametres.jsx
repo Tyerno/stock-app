@@ -315,8 +315,22 @@ function OngletExport() {
         a.click(); URL.revokeObjectURL(url);
       } else if (format === 'csv') {
         if (!data.length) return toast.error('Aucune donnée à exporter');
-        const keys = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object');
-        const csv  = [keys.join(';'), ...data.map(row => keys.map(k => `"${row[k] ?? ''}"`).join(';'))].join('\n');
+        // Aplatit les objets imbriqués sur un niveau (ex: client.nom) ; ignore les tableaux (ex: paiements)
+        const aplatir = (row) => {
+          const flat = {};
+          Object.entries(row).forEach(([k, v]) => {
+            if (Array.isArray(v)) return;
+            if (v && typeof v === 'object') {
+              Object.entries(v).forEach(([sk, sv]) => { flat[`${k}.${sk}`] = sv; });
+            } else {
+              flat[k] = v;
+            }
+          });
+          return flat;
+        };
+        const rows = data.map(aplatir);
+        const keys = Object.keys(rows[0]);
+        const csv  = [keys.join(';'), ...rows.map(row => keys.map(k => `"${row[k] ?? ''}"`).join(';'))].join('\n');
         const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
@@ -332,12 +346,14 @@ function OngletExport() {
     { label:'Produits',    endpoint:'produits',   desc:'Liste complète des produits et stocks',      color:'blue'   },
     { label:'Ventes',      endpoint:'ventes',     desc:'Historique de toutes les ventes',            color:'indigo' },
     { label:'Mouvements',  endpoint:'mouvements', desc:'Tous les mouvements de stock',               color:'green'  },
+    { label:'Dettes',      endpoint:'dettes',     desc:'Cahier de dettes et historique des paiements', color:'red'  },
   ];
 
   const colorMap = {
     blue:   'bg-indigo-50 border-indigo-100',
     indigo: 'bg-indigo-50 border-indigo-100',
     green:  'bg-emerald-50 border-emerald-100',
+    red:    'bg-red-50 border-red-100',
   };
 
   return (

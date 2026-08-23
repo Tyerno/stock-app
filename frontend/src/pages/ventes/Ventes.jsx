@@ -3,12 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, ShoppingCart, Printer, X, CheckCircle,
   Plus, Minus, Trash2, Tag, CreditCard, Smartphone,
-  Layers, Receipt, Package, Zap
+  Layers, Receipt, Package, Zap, HandCoins, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import api from '../../utils/api';
-import { fmt, fmtDate } from '../../utils/format';
+import { fmt, fmtDate, inputCls } from '../../utils/format';
 import Modal from '../../components/ui/Modal';
 import Table from '../../components/ui/Table';
 import EmptyState from '../../components/ui/EmptyState';
@@ -245,8 +245,66 @@ function LignePanier({ ligne, onUpdate, onRemove }) {
 }
 
 // ─── Historique ───────────────────────────────────────────────────────────────
+// ─── Modale : créer une dette depuis une vente ─────────────────────────────
+function ModaleCreerDette({ vente, onClose }) {
+  const qc = useQueryClient();
+  const [nom, setNom]             = useState(vente.client?.nom || '');
+  const [telephone, setTelephone] = useState(vente.client?.telephone || '');
+  const [montant, setMontant]     = useState(vente.totalNet);
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/dettes', {
+      client: { nom, telephone },
+      montantInitial: Number(montant),
+      vente: vente._id,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dettes'] });
+      toast.success('Dette enregistrée ✓');
+      onClose();
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
+  });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      icon={HandCoins}
+      title="Créer une dette"
+      subtitle={`Depuis la vente ${vente.numero}`}
+      size="sm"
+      footer={<>
+        <button onClick={onClose} className="btn-secondary">Annuler</button>
+        <button onClick={() => mutation.mutate()}
+          disabled={!nom || !montant || Number(montant) <= 0 || Number(montant) > vente.totalNet || mutation.isPending}
+          className="btn-primary">
+          {mutation.isPending ? 'Enregistrement…' : <><Check size={14}/> Enregistrer</>}
+        </button>
+      </>}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-500">Nom du client *</label>
+          <input className={inputCls} value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex: Mamadou Diallo"/>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-500">Téléphone</label>
+          <input className={inputCls} value={telephone} onChange={e => setTelephone(e.target.value)} placeholder="Ex: 622 00 00 00"/>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-500">Montant dû (GNF) *</label>
+          <input type="number" min="1" max={vente.totalNet} className={inputCls} value={montant}
+            onChange={e => setMontant(e.target.value)} placeholder="0"/>
+          <p className="text-[11px] text-slate-400">Total de la vente : {fmt(vente.totalNet)} GNF — modifiable si seule une partie est à crédit.</p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function HistoriqueVentes() {
   const [recuVente, setRecuVente] = useState(null);
+  const [venteADette, setVenteADette] = useState(null);
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin]     = useState('');
 
@@ -305,10 +363,18 @@ function HistoriqueVentes() {
                     <td className="px-4 py-3.5 text-xs text-slate-400">{v.vendeur?.nom}</td>
                     <td className="px-4 py-3.5 text-xs text-slate-400 whitespace-nowrap">{fmtDate(v.createdAt)}</td>
                     <td className="px-4 py-3.5">
-                      <button onClick={() => setRecuVente(v)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:gradient-brand hover:text-white transition-all whitespace-nowrap">
-                        <Printer size={11}/> Reçu
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => setRecuVente(v)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:gradient-brand hover:text-white transition-all whitespace-nowrap">
+                          <Printer size={11}/> Reçu
+                        </button>
+                        {v.client?.nom && (
+                          <button onClick={() => setVenteADette(v)} title="Créer une dette"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-all whitespace-nowrap">
+                            <HandCoins size={11}/> Dette
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
         ))}
@@ -336,6 +402,8 @@ function HistoriqueVentes() {
           </div>
         </Modal>
       )}
+
+      {venteADette && <ModaleCreerDette vente={venteADette} onClose={() => setVenteADette(null)} />}
     </div>
   );
 }

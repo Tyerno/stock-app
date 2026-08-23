@@ -4,13 +4,14 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import {
   Package, TrendingDown, AlertTriangle, Banknote,
   ArrowDownCircle, ArrowUpCircle, ShoppingCart, Activity,
-  Eye, Zap, ChevronRight
+  Eye, Zap, ChevronRight, WifiOff, HandCoins, Wallet
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import KpiCard, { AnimatedBar } from '../../components/common/KpiCard';
 import Table from '../../components/ui/Table';
+import EmptyState from '../../components/ui/EmptyState';
 import { fmt, fmtM } from '../../utils/format';
 
 
@@ -59,7 +60,7 @@ function DashboardSkeleton() {
 // ════════════════════════════════════════════════════════════════════════════
 // DASHBOARD ADMIN
 // ════════════════════════════════════════════════════════════════════════════
-function DashboardAdmin({ data, user }) {
+function DashboardAdmin({ data, user, totalDu, dettesRecentes }) {
   const { kpis, graphe30Jours, topProduits, derniersMouvements, alertes } = data;
 
   const grapheMap = {};
@@ -205,6 +206,25 @@ function DashboardAdmin({ data, user }) {
                 Voir tout <ChevronRight size={12}/>
               </Link>
             </div>
+
+            {/* Vue carte — mobile */}
+            <div className="sm:hidden flex flex-col divide-y divide-slate-100">
+              {derniersMouvements?.map(m => (
+                <div key={m._id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{m.produit?.nom}</p>
+                    <p className="text-[11px] text-slate-400">{new Date(m.createdAt).toLocaleDateString('fr-FR')} · {m.utilisateur?.nom||'—'}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${typeCfg[m.type]}`}>{typeLbl[m.type]}</span>
+                    <p className="text-sm font-mono text-slate-600 mt-1">{fmt(m.quantite)} {m.produit?.unite}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Vue tableau — tablette / desktop */}
+            <div className="hidden sm:block">
             <Table columns={['Produit','Type', { label:'Quantité', align:'right' },'Par','Date']}>
               {derniersMouvements?.map(m => (
                 <tr key={m._id} className="group">
@@ -218,6 +238,7 @@ function DashboardAdmin({ data, user }) {
                 </tr>
               ))}
             </Table>
+            </div>
           </div>
         </div>
 
@@ -251,6 +272,45 @@ function DashboardAdmin({ data, user }) {
           </div>
         </div>
       </div>
+
+      {/* Cahier de dettes */}
+      <div className="card-neu border-l-4 border-l-red-500 p-5 animate-fade-up-5">
+        <div className="flex items-center justify-between mb-4">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
+            <HandCoins size={14} className="text-red-500"/> Cahier de dettes
+          </p>
+          <Link to="/dettes" className="flex items-center gap-1 text-xs text-indigo-500 font-semibold hover:text-indigo-700 transition-colors">
+            Voir tout <ChevronRight size={12}/>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Total dû */}
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex flex-col justify-center">
+            <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1">Total dû (dettes en cours)</p>
+            <p className="font-syne text-2xl font-bold text-red-600">{fmtM(totalDu)} GNF</p>
+          </div>
+
+          {/* Dettes récentes */}
+          <div className="lg:col-span-2">
+            {dettesRecentes?.length === 0 ? (
+              <div className="flex items-center gap-3 text-emerald-600 bg-emerald-50 border border-emerald-100 px-4 py-3 rounded-xl h-full">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 dot-live"/>
+                <span className="text-sm font-medium">Aucune dette en cours ✓</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {dettesRecentes?.map(d => (
+                  <div key={d._id} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-xs font-medium text-slate-700 truncate">{d.client?.nom}</span>
+                    <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-lg flex-shrink-0">{fmt(d.montantRestant)} GNF</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -258,7 +318,7 @@ function DashboardAdmin({ data, user }) {
 // ════════════════════════════════════════════════════════════════════════════
 // DASHBOARD GESTIONNAIRE
 // ════════════════════════════════════════════════════════════════════════════
-function DashboardGestionnaire({ data, user }) {
+function DashboardGestionnaire({ data, user, totalDu }) {
   const navigate  = useNavigate();
   const { kpis, alertes, derniersMouvements } = data;
 
@@ -271,6 +331,7 @@ function DashboardGestionnaire({ data, user }) {
   const actions = [
     { label:'Nouvelle vente',   to:'/ventes',     Icon:ShoppingCart,   cls:'gradient-brand text-white shadow-lg shadow-indigo-200 hover:opacity-90' },
     { label:'Voir les produits',to:'/produits',   Icon:Package,         cls:'bg-white border-2 border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600' },
+    { label:'Cahier de dettes', to:'/dettes',     Icon:HandCoins,       cls:'bg-white border-2 border-slate-200 text-slate-700 hover:border-red-300 hover:text-red-600' },
     { label:'Voir alertes',     to:'/alertes',    Icon:AlertTriangle,   cls:'bg-amber-50 border-2 border-amber-200 text-amber-700 hover:bg-amber-100' },
     { label:'Mouvements',       to:'/mouvements', Icon:ArrowDownCircle, cls:'bg-white border-2 border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600' },
   ];
@@ -289,12 +350,13 @@ function DashboardGestionnaire({ data, user }) {
         <p className="text-sm text-slate-400 ml-9">{new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
         {[
           { label:'Produits actifs', value:kpis.totalProduits,   Icon:Package,      accent:'blue'  },
           { label:'Ruptures',        value:kpis.produitsRupture, Icon:TrendingDown, accent:'red'   },
           { label:'Stocks faibles',  value:kpis.produitsFaibles, Icon:AlertTriangle,accent:'amber' },
           { label:'Sorties ce mois', value:kpis.sortiesMois,     Icon:ShoppingCart, accent:'green' },
+          { label:'Total dû',        value:fmt(totalDu)+' GNF',  Icon:Wallet,       accent:'red'   },
         ].map((k, i) => (
           <KpiCard key={k.label} delay={i+1} label={k.label} value={k.value} sub="" Icon={k.Icon} accent={k.accent} />
         ))}
@@ -352,6 +414,25 @@ function DashboardGestionnaire({ data, user }) {
             <p className="text-sm font-bold text-slate-800">Derniers mouvements</p>
             <Link to="/mouvements" className="flex items-center gap-1 text-xs text-indigo-500 font-semibold hover:text-indigo-700 transition-colors">Voir tout <ChevronRight size={12}/></Link>
           </div>
+
+          {/* Vue carte — mobile */}
+          <div className="sm:hidden flex flex-col divide-y divide-slate-100">
+            {derniersMouvements?.slice(0,6).map(m => (
+              <div key={m._id} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{m.produit?.nom}</p>
+                  <p className="text-[11px] text-slate-400">{new Date(m.createdAt).toLocaleDateString('fr-FR')}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${typeCfg[m.type]}`}>{typeLbl[m.type]}</span>
+                  <p className="text-sm font-mono text-slate-600 mt-1">{fmt(m.quantite)} {m.produit?.unite}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Vue tableau — tablette / desktop */}
+          <div className="hidden sm:block">
           <Table columns={['Produit','Type', { label:'Quantité', align:'right' },'Date']}>
             {derniersMouvements?.slice(0,6).map(m => (
               <tr key={m._id} className="group">
@@ -362,6 +443,7 @@ function DashboardGestionnaire({ data, user }) {
               </tr>
             ))}
           </Table>
+          </div>
         </div>
       </div>
     </div>
@@ -440,15 +522,38 @@ function DashboardLecteur({ data, user }) {
 export default function Dashboard() {
   const { user } = useAuth();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn:  () => api.get('/dashboard').then(r => r.data.data),
     refetchInterval: 30_000,
   });
 
+  // Dettes en cours — requête secondaire, n'affecte pas l'état principal du dashboard si elle échoue
+  const { data: dettesActives } = useQuery({
+    queryKey: ['dettes-dashboard'],
+    queryFn:  () => api.get('/dettes', { params: { statut: 'EN_COURS' } }).then(r => r.data.data),
+    refetchInterval: 30_000,
+  });
+  const totalDu        = (dettesActives || []).reduce((s, d) => s + d.montantRestant, 0);
+  const dettesRecentes  = (dettesActives || []).slice(0, 5);
+
   if (isLoading) return <DashboardSkeleton />;
 
-  if (user?.role === 'admin')        return <DashboardAdmin        data={data} user={user} />;
-  if (user?.role === 'gestionnaire') return <DashboardGestionnaire data={data} user={user} />;
+  if (isError || !data) {
+    return (
+      <div className="min-h-screen bg-slate-100 p-5 lg:p-7">
+        <div className="card-neu">
+          <EmptyState
+            icon={WifiOff}
+            title="Impossible de charger le dashboard"
+            description="Vérifiez votre connexion internet et réessayez. Si le problème persiste, le serveur met peut-être quelques secondes à démarrer."
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (user?.role === 'admin')        return <DashboardAdmin        data={data} user={user} totalDu={totalDu} dettesRecentes={dettesRecentes} />;
+  if (user?.role === 'gestionnaire') return <DashboardGestionnaire data={data} user={user} totalDu={totalDu} />;
   return <DashboardLecteur data={data} user={user} />;
 }

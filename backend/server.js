@@ -53,6 +53,7 @@ app.use('/api/utilisateurs',  require('./routes/utilisateurs'));
 app.use('/api/stats',         require('./routes/stats'));
 app.use('/api/previsions',    require('./routes/previsions'));
 app.use('/api/emails',        require('./routes/emails'));
+app.use('/api/dettes',        require('./routes/dettes'));
 
 // ─── Santé ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
