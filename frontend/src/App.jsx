@@ -14,7 +14,6 @@ import Connexion from './pages/auth/Connexion';
 const Dashboard     = lazy(() => import('./pages/dashboard/Dashboard'));
 const Produits      = lazy(() => import('./pages/produits/Produits'));
 const Ventes         = lazy(() => import('./pages/ventes/Ventes'));
-const NouvelleVente  = lazy(() => import('./pages/ventes/NouvelleVente'));
 const Mouvements     = lazy(() => import('./pages/mouvements/Mouvements'));
 const Alertes        = lazy(() => import('./pages/alertes/Alertes'));
 const Utilisateurs   = lazy(() => import('./pages/utilisateurs/Utilisateurs'));
@@ -61,11 +60,6 @@ function AppRoutes() {
         <Route index                  element={<Dashboard />} />
         <Route path="produits"        element={<Produits />} />
         <Route path="ventes"          element={<Ventes />} />
-        <Route path="ventes/nouvelle" element={
-          <ProtectedRoute roles={['admin', 'gestionnaire']}>
-            <NouvelleVente />
-          </ProtectedRoute>
-        } />
         <Route path="mouvements"   element={<Mouvements />} />
         <Route path="dettes"       element={<Dettes />} />
         <Route path="alertes"      element={<Alertes />} />

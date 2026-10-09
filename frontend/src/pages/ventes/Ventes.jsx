@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, ShoppingCart, Printer, X, CheckCircle,
   Plus, Minus, Trash2, Tag, CreditCard, Smartphone,
-  Layers, Receipt, Package, Zap, HandCoins, Check
+  Layers, Receipt, Package, Zap, HandCoins, Check, Wallet, WifiOff
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -76,11 +76,14 @@ function imprimerRecu(vente) {
 }
 
 // ─── Modal succès ─────────────────────────────────────────────────────────────
-function SuccessModal({ vente, onClose, onPrint }) {
+function SuccessModal({ vente, onClose, onPrint, onCreerDette }) {
+  const resteAPayer = Math.max(0, vente.totalNet - (vente.montantRecu || 0));
+
   useEffect(() => {
+    if (resteAPayer > 0) return; // pas de fermeture auto tant qu'il reste un solde à traiter
     const t = setTimeout(onClose, 8000);
     return () => clearTimeout(t);
-  }, [onClose]);
+  }, [onClose, resteAPayer]);
 
   return (
     <Modal open onClose={onClose} size="sm" hideHeader>
@@ -106,14 +109,24 @@ function SuccessModal({ vente, onClose, onPrint }) {
               { label:'Client',   value: vente.client?.nom || 'Comptoir' },
               { label:'Articles', value: `${vente.lignes.length} produit(s)` },
               { label:'Total',    value: `${fmt(vente.totalNet)} GNF` },
-              { label:'Monnaie',  value: `${fmt(vente.monnaie)} GNF` },
+              resteAPayer > 0
+                ? { label:'Reste à payer', value: `${fmt(resteAPayer)} GNF`, alert:true }
+                : { label:'Monnaie',  value: `${fmt(vente.monnaie)} GNF` },
             ].map(item => (
-              <div key={item.label} className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">{item.label}</p>
-                <p className="text-sm font-bold text-slate-800 truncate">{item.value}</p>
+              <div key={item.label} className={`rounded-2xl p-3 text-center border ${item.alert ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+                <p className={`text-[10px] uppercase tracking-wider mb-1 ${item.alert ? 'text-red-400' : 'text-slate-400'}`}>{item.label}</p>
+                <p className={`text-sm font-bold truncate ${item.alert ? 'text-red-600' : 'text-slate-800'}`}>{item.value}</p>
               </div>
             ))}
           </div>
+
+          {resteAPayer > 0 && vente.client?.nom && (
+            <button onClick={() => onCreerDette(vente)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition-all shadow-md shadow-red-200 active:scale-95 mb-3">
+              <HandCoins size={15}/> Créer une dette pour {fmt(resteAPayer)} GNF
+            </button>
+          )}
+
           <div className="flex gap-3">
             <button onClick={() => { onPrint(vente); onClose(); }}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-700 transition-all active:scale-95">
@@ -124,7 +137,9 @@ function SuccessModal({ vente, onClose, onPrint }) {
               <Zap size={15}/> Nouvelle vente
             </button>
           </div>
-          <p className="text-center text-[10px] text-slate-400 mt-3">Fermeture automatique dans 8 secondes</p>
+          {resteAPayer === 0 && (
+            <p className="text-center text-[10px] text-slate-400 mt-3">Fermeture automatique dans 8 secondes</p>
+          )}
         </div>
       </div>
     </Modal>
@@ -250,7 +265,8 @@ function ModaleCreerDette({ vente, onClose }) {
   const qc = useQueryClient();
   const [nom, setNom]             = useState(vente.client?.nom || '');
   const [telephone, setTelephone] = useState(vente.client?.telephone || '');
-  const [montant, setMontant]     = useState(vente.totalNet);
+  const resteAPayer = Math.max(0, vente.totalNet - (vente.montantRecu || 0));
+  const [montant, setMontant]     = useState(resteAPayer > 0 ? resteAPayer : vente.totalNet);
 
   const mutation = useMutation({
     mutationFn: () => api.post('/dettes', {
@@ -308,7 +324,7 @@ function HistoriqueVentes() {
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin]     = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['ventes', dateDebut, dateFin],
     queryFn:  () => api.get('/ventes', {
       params: { dateDebut:dateDebut||undefined, dateFin:dateFin||undefined, limit:50 }
@@ -343,8 +359,10 @@ function HistoriqueVentes() {
       <Table
         columns={['N° Vente','Client','Articles','Total','Paiement','Vendeur','Date','']}
         loading={isLoading}
-        isEmpty={data?.data?.length === 0}
-        emptyState={<EmptyState icon={Receipt} title="Aucune vente sur cette période" />}
+        isEmpty={isError || data?.data?.length === 0}
+        emptyState={isError
+          ? <EmptyState icon={WifiOff} title="Impossible de charger les ventes" description="Vérifiez votre connexion et réessayez." />
+          : <EmptyState icon={Receipt} title="Aucune vente sur cette période" />}
       >
         {data?.data?.map(v => (
                   <tr key={v._id} className="border-b border-slate-50 hover:bg-indigo-50/30 transition-colors group">
@@ -423,10 +441,11 @@ export default function Ventes() {
   const [montantRecu, setMontantRecu]   = useState('');
   const [remise, setRemise]             = useState('');
   const [successVente, setSuccessVente] = useState(null);
+  const [venteADetteApres, setVenteADetteApres] = useState(null);
   const [onglet, setOnglet]             = useState('caisse');
   const [panierOuvert, setPanierOuvert] = useState(false); // mobile
 
-  const { data: produitsData } = useQuery({
+  const { data: produitsData, isError: produitsIsError } = useQuery({
     queryKey: ['produits-vente', search, catFiltre],
     queryFn:  () => api.get('/produits', {
       params: { search, categorie:catFiltre||undefined, limit:100 }
@@ -601,7 +620,9 @@ export default function Ventes() {
 
             {/* Grille produits */}
             <div className="lg:flex-1 lg:overflow-y-auto scrollbar-hide">
-              {!produitsData ? (
+              {produitsIsError ? (
+                <EmptyState icon={WifiOff} title="Impossible de charger les produits" description="Vérifiez votre connexion et réessayez." />
+              ) : !produitsData ? (
                 <div className="flex justify-center pt-16"><Spinner /></div>
               ) : produitsData.length === 0 ? (
                 <EmptyState icon={Package} title="Aucun produit trouvé" />
@@ -698,8 +719,8 @@ export default function Ventes() {
                       className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 transition-all"/>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                      💰 Reçu
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <Wallet size={10}/> Reçu
                     </label>
                     <input type="number" min="0" placeholder={fmt(totalNet)} value={montantRecu}
                       onChange={e => setMontantRecu(e.target.value)}
@@ -720,15 +741,23 @@ export default function Ventes() {
                   </div>
                 )}
 
-                {/* Monnaie */}
+                {/* Reste à payer / Monnaie à rendre */}
                 {montantRecu && (
-                  <div className={`flex items-center justify-between px-4 py-3 rounded-xl border font-bold
-                    ${monnaie >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-                    <span className="text-xs text-slate-600">Monnaie à rendre</span>
-                    <span className={`text-lg font-mono ${monnaie >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {fmt(monnaie)} GNF
-                    </span>
-                  </div>
+                  Number(montantRecu) < totalNet ? (
+                    <div className="flex items-center justify-between px-4 py-3 rounded-xl border font-bold bg-red-50 border-red-100">
+                      <span className="text-xs text-red-600">⚠ Reste à payer</span>
+                      <span className="text-lg font-mono text-red-600">
+                        {fmt(totalNet - Number(montantRecu))} GNF
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between px-4 py-3 rounded-xl border font-bold bg-emerald-50 border-emerald-100">
+                      <span className="text-xs text-slate-600">Monnaie à rendre</span>
+                      <span className="text-lg font-mono text-emerald-600">
+                        {fmt(monnaie)} GNF
+                      </span>
+                    </div>
+                  )
                 )}
 
                 {/* Total + bouton */}
@@ -845,7 +874,16 @@ export default function Ventes() {
 
       {/* Modal succès */}
       {successVente && (
-        <SuccessModal vente={successVente} onClose={() => setSuccessVente(null)} onPrint={imprimerRecu}/>
+        <SuccessModal
+          vente={successVente}
+          onClose={() => setSuccessVente(null)}
+          onPrint={imprimerRecu}
+          onCreerDette={(v) => { setSuccessVente(null); setVenteADetteApres(v); }}
+        />
+      )}
+
+      {venteADetteApres && (
+        <ModaleCreerDette vente={venteADetteApres} onClose={() => setVenteADetteApres(null)} />
       )}
     </div>
   );

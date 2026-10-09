@@ -16,6 +16,13 @@ const categories = [
 ];
 
 async function seed() {
+  if (process.argv[2] !== '--je-confirme-vider-la-base') {
+    console.log('⚠️  Ce script SUPPRIME tous les utilisateurs, produits et catégories avant de recréer des données de démo.');
+    console.log('    Pour l\'exécuter volontairement, relance avec :');
+    console.log('    node config/seed.js --je-confirme-vider-la-base');
+    process.exit(1);
+  }
+
   await mongoose.connect(process.env.MONGODB_URI);
   console.log('📡 Connecté à MongoDB');
 

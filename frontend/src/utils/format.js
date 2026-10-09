@@ -51,4 +51,4 @@ export const fmtDate = (d) => new Date(d).toLocaleString('fr-FR', {
 });
 
 // inputCls = classe Tailwind standard pour tous les champs texte
-export const inputCls = "w-full bg-white border border-gray-200 text-gray-800 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-gray-300";
+export const inputCls = "w-full bg-white border border-slate-200 text-slate-800 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-300";
