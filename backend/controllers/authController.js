@@ -7,8 +7,18 @@ exports.connexion = async (req, res) => {
   try {
     const { email, motDePasse } = req.body;
     if (!email || !motDePasse) return res.status(400).json({ success: false, message: 'Email et mot de passe requis' });
-    const user = await User.findOne({ email }).select('+motDePasse');
-    if (!user || !(await user.verifierMotDePasse(motDePasse))) return res.status(401).json({ success: false, message: 'Identifiants incorrects' });
+
+    const emailNormalise = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: emailNormalise }).select('+motDePasse');
+    if (!user || !(await user.verifierMotDePasse(String(motDePasse)))) {
+      return res.status(401).json({ success: false, message: 'Identifiants incorrects' });
+    }
+
+    // Compte désactivé : refusé après vérification du mot de passe
+    if (!user.actif) {
+      return res.status(403).json({ success: false, message: 'Compte désactivé. Contactez l\'administrateur.' });
+    }
+
     user.derniereConnexion = new Date();
     await user.save({ validateBeforeSave: false });
     res.json({ success: true, token: genToken(user._id), data: { id: user._id, nom: user.nom, email: user.email, role: user.role } });
