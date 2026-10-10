@@ -16,7 +16,20 @@ const DetteSchema = new mongoose.Schema({
   montantRestant: { type: Number, required: true, min: 0 },
   paiements:      { type: [PaiementSchema], default: [] },
   statut:         { type: String, enum: ['EN_COURS', 'PAYEE'], default: 'EN_COURS' },
-}, { timestamps: true });
+  dateEcheance:   { type: Date }, // optionnelle : les dettes sans échéance restent valides
+}, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true }, id: false });
+
+// Début de la journée courante (UTC) : une dette échue "aujourd'hui" n'est pas encore en retard.
+const debutJournee = () => {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+};
+
+// Champ calculé (non stocké) : en retard = non soldée + échéance dépassée.
+DetteSchema.virtual('enRetard').get(function () {
+  return this.statut === 'EN_COURS' && !!this.dateEcheance && this.dateEcheance < debutJournee();
+});
 
 // Le montant restant et le statut sont toujours dérivés de montantInitial et des paiements —
 // jamais définis manuellement, pour garantir la cohérence des données à chaque sauvegarde.
@@ -35,7 +48,10 @@ DetteSchema.pre('validate', function (next) {
 
 DetteSchema.index({ 'client.nom': 1 });
 DetteSchema.index({ statut: 1 });
+DetteSchema.index({ statut: 1, dateEcheance: 1 });
 DetteSchema.index({ vente: 1 });
 DetteSchema.index({ createdAt: -1 });
+
+DetteSchema.statics.debutJournee = debutJournee;
 
 module.exports = mongoose.model('Dette', DetteSchema);
