@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  HandCoins, Plus, Search, Check, WifiOff, Wallet, User, Receipt,
+  HandCoins, Plus, Search, Check, WifiOff, Wallet, User, Receipt, CalendarClock, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
@@ -14,22 +14,52 @@ import { CenteredSpinner } from '../../components/ui/LoadingState';
 const STATUTS = [
   { id: '',        label: 'Toutes' },
   { id: 'EN_COURS', label: 'En cours' },
+  { id: 'RETARD',   label: 'En retard' },
   { id: 'PAYEE',    label: 'Soldées' },
 ];
+
+// ─── Échéances ──────────────────────────────────────────────────────────────
+// Les dates sont stockées à minuit UTC : tout est calculé en UTC pour éviter les décalages.
+const aujourdhuiISO = () => new Date().toISOString().slice(0, 10);   // AAAA-MM-JJ
+const versInputDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+const fmtJour = (d) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+// Renvoie { label, cls } pour afficher l'état de l'échéance, ou null si rien à signaler.
+function infoEcheance(d) {
+  if (!d.dateEcheance || d.statut === 'PAYEE') return null;
+  const debutJour = new Date(aujourdhuiISO() + 'T00:00:00.000Z');
+  const jours = Math.round((new Date(d.dateEcheance) - debutJour) / 86_400_000);
+  const pluriel = (n) => `${n} jour${n > 1 ? 's' : ''}`;
+  if (d.enRetard || jours < 0) return { label: `En retard de ${pluriel(Math.abs(jours))}`, cls: 'bg-red-50 text-red-600', retard: true };
+  if (jours === 0)              return { label: "Échéance aujourd'hui",                      cls: 'bg-amber-50 text-amber-600' };
+  return                               { label: `Dans ${pluriel(jours)}`,                    cls: 'bg-slate-100 text-slate-500' };
+}
+
+function BadgeEcheance({ dette }) {
+  const info = infoEcheance(dette);
+  if (!info) return null;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${info.cls}`}>
+      {info.retard ? <AlertTriangle size={10}/> : <CalendarClock size={10}/>}{info.label}
+    </span>
+  );
+}
 
 // ─── Modale : nouvelle dette ───────────────────────────────────────────────
 function ModaleNouvelleDette({ onClose }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ nom: '', telephone: '', montantInitial: '' });
+  const [form, setForm] = useState({ nom: '', telephone: '', montantInitial: '', dateEcheance: '' });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const mutation = useMutation({
     mutationFn: (d) => api.post('/dettes', {
       client: { nom: d.nom, telephone: d.telephone },
       montantInitial: Number(d.montantInitial),
+      dateEcheance: d.dateEcheance || undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dettes'] });
+      qc.invalidateQueries({ queryKey: ['dettes-dashboard'] });
       toast.success('Dette enregistrée ✓');
       onClose();
     },
@@ -66,6 +96,11 @@ function ModaleNouvelleDette({ onClose }) {
           <input type="number" min="1" className={inputCls} value={form.montantInitial}
             onChange={e => set('montantInitial', e.target.value)} placeholder="0"/>
         </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-500">Date d'échéance (optionnel)</label>
+          <input type="date" min={aujourdhuiISO()} className={inputCls} value={form.dateEcheance}
+            onChange={e => set('dateEcheance', e.target.value)}/>
+        </div>
       </div>
     </Modal>
   );
@@ -76,11 +111,24 @@ function ModaleDetailDette({ dette, onClose }) {
   const qc = useQueryClient();
   const [montant, setMontant] = useState('');
   const [note, setNote] = useState('');
+  const [echeance, setEcheance] = useState(versInputDate(dette.dateEcheance));
+
+  const mutationEcheance = useMutation({
+    mutationFn: (valeur) => api.patch(`/dettes/${dette._id}/echeance`, { dateEcheance: valeur || null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dettes'] });
+      qc.invalidateQueries({ queryKey: ['dettes-dashboard'] });
+      toast.success('Échéance mise à jour ✓');
+      onClose();
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
+  });
 
   const mutation = useMutation({
     mutationFn: () => api.post(`/dettes/${dette._id}/paiement`, { montant: Number(montant), note }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dettes'] });
+      qc.invalidateQueries({ queryKey: ['dettes-dashboard'] });
       toast.success('Paiement enregistré ✓');
       setMontant(''); setNote('');
       onClose();
@@ -121,6 +169,37 @@ function ModaleDetailDette({ dette, onClose }) {
             <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Statut</p>
             <p className="text-xs font-bold text-indigo-600 mt-1">{soldee ? 'Soldée' : 'En cours'}</p>
           </div>
+        </div>
+
+        {/* Échéance */}
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+            <CalendarClock size={13}/> Échéance
+          </p>
+          {soldee ? (
+            <p className="text-xs text-slate-400 italic">{dette.dateEcheance ? `Prévue le ${fmtJour(dette.dateEcheance)}` : 'Aucune échéance définie.'}</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="date" className={inputCls + ' flex-1 min-w-[10rem]'} value={echeance}
+                  onChange={e => setEcheance(e.target.value)}/>
+                <button onClick={() => mutationEcheance.mutate(echeance)}
+                  disabled={echeance === versInputDate(dette.dateEcheance) || mutationEcheance.isPending}
+                  className="btn-secondary">
+                  {mutationEcheance.isPending ? '…' : 'Mettre à jour'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <BadgeEcheance dette={dette}/>
+                {dette.dateEcheance && (
+                  <button onClick={() => mutationEcheance.mutate(null)} disabled={mutationEcheance.isPending}
+                    className="text-[11px] text-slate-400 hover:text-red-500 underline underline-offset-2">
+                    Retirer l'échéance
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Historique des paiements */}
@@ -172,7 +251,11 @@ export default function Dettes() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dettes', statut, search],
-    queryFn: () => api.get('/dettes', { params: { statut: statut || undefined, search: search || undefined } })
+    queryFn: () => api.get('/dettes', { params: {
+      statut: (statut && statut !== 'RETARD') ? statut : undefined,
+      enRetard: statut === 'RETARD' ? 'true' : undefined,
+      search: search || undefined,
+    } })
       .then(r => r.data.data),
   });
 
@@ -180,6 +263,7 @@ export default function Dettes() {
   const totalDu       = dettes.filter(d => d.statut === 'EN_COURS').reduce((s, d) => s + d.montantRestant, 0);
   const nbEnCours      = dettes.filter(d => d.statut === 'EN_COURS').length;
   const nbSoldees       = dettes.filter(d => d.statut === 'PAYEE').length;
+  const nbRetard        = dettes.filter(d => d.enRetard).length;
 
   return (
     <div className="min-h-screen bg-slate-100 p-5 lg:p-7">
@@ -201,10 +285,11 @@ export default function Dettes() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5 animate-fade-up-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5 animate-fade-up-2">
         {[
           { label:'Total dû',        value:fmt(totalDu)+' GNF', color:'text-red-600',    bg:'bg-red-50',    border:'border-l-red-500',    Icon:Wallet },
           { label:'Dettes en cours', value:nbEnCours,           color:'text-amber-600',  bg:'bg-amber-50',  border:'border-l-amber-500',  Icon:HandCoins },
+          { label:'En retard',       value:nbRetard,            color:'text-red-600',    bg:'bg-red-50',    border:'border-l-red-500',    Icon:AlertTriangle },
           { label:'Dettes soldées',  value:nbSoldees,           color:'text-green-600',  bg:'bg-green-50',  border:'border-l-green-500',  Icon:Check },
         ].map((k, i) => (
           <div key={k.label} className={`card-neu border-l-4 ${k.border} p-4 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 animate-fade-up-${i+1}`}>
@@ -265,6 +350,7 @@ export default function Dettes() {
                     {d.statut === 'PAYEE' ? 'Soldée' : 'En cours'}
                   </span>
                 </div>
+                {infoEcheance(d) && <div className="mt-2.5"><BadgeEcheance dette={d}/></div>}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider">Restant</p>
@@ -281,7 +367,7 @@ export default function Dettes() {
 
           {/* Vue tableau — tablette / desktop */}
           <div className="hidden sm:block animate-fade-up-4">
-          <Table columns={['Client','Téléphone', { label:'Montant initial', align:'right' }, { label:'Restant', align:'right' }, 'Statut', 'Date']}>
+          <Table columns={['Client','Téléphone', { label:'Montant initial', align:'right' }, { label:'Restant', align:'right' }, 'Statut', 'Échéance', 'Date']}>
             {dettes.map(d => (
               <tr key={d._id} className="cursor-pointer group" onClick={() => setDetteSelectionnee(d)}>
                 <td className="text-sm font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{d.client?.nom}</td>
@@ -293,6 +379,7 @@ export default function Dettes() {
                     {d.statut === 'PAYEE' ? 'Soldée' : 'En cours'}
                   </span>
                 </td>
+                <td>{infoEcheance(d) ? <BadgeEcheance dette={d}/> : <span className="text-xs text-slate-300">{d.dateEcheance ? fmtJour(d.dateEcheance) : '—'}</span>}</td>
                 <td className="text-xs text-slate-400 whitespace-nowrap">{fmtDate(d.createdAt)}</td>
               </tr>
             ))}
