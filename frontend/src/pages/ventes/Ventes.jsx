@@ -127,6 +127,12 @@ function SuccessModal({ vente, onClose, onPrint, onCreerDette }) {
             </button>
           )}
 
+          {resteAPayer > 0 && !vente.client?.nom && (
+            <p className="text-center text-[11px] text-red-500 mb-3">
+              Aucun nom de client : impossible de créer une dette pour ce reste. Ajoutez un nom lors de la prochaine vente.
+            </p>
+          )}
+
           <div className="flex gap-3">
             <button onClick={() => { onPrint(vente); onClose(); }}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-700 transition-all active:scale-95">
@@ -513,12 +519,22 @@ export default function Ventes() {
 
   const validerVente = () => {
     if (panier.length === 0) return toast.error('Le panier est vide');
+
+    // Champ « Reçu » laissé vide = le client a payé le total (c'est la valeur affichée en grisé).
+    const recuVide = montantRecu === '';
+    const recu     = recuVide ? totalNet : Number(montantRecu);
+
+    // Paiement partiel : le reste doit pouvoir être noté en dette → il faut un nom de client.
+    if (recu < totalNet && !client.nom?.trim()) {
+      return toast.error('Paiement partiel : saisissez le nom du client pour noter le reste en dette.');
+    }
+
     mutation.mutate({
       client,
       remise:       Number(remise) || 0,
       modePaiement,
-      montantRecu:  Number(montantRecu) || 0,
-      monnaie,
+      montantRecu:  recu,
+      monnaie:      Math.max(0, recu - totalNet),
       lignes: panier.map(l => ({
         produitId:    l.produitId,
         quantite:     l.quantite,
@@ -536,10 +552,10 @@ export default function Ventes() {
   ].filter((v, i, a) => v > 0 && a.indexOf(v) === i).slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
+    <div className="-m-4 sm:-m-6 bg-slate-100 flex flex-col min-h-[calc(100%+2rem)] sm:min-h-[calc(100%+3rem)] lg:h-[calc(100%+3rem)]">
 
       {/* ── Header ── */}
-      <div className="bg-white border-b border-slate-100 shadow-sm sticky top-14 z-30">
+      <div className="bg-white border-b border-slate-100 shadow-sm sticky -top-4 sm:-top-6 z-30 flex-shrink-0">
         <div className="px-4 lg:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center shadow-md shadow-indigo-200 flex-shrink-0">
@@ -581,11 +597,11 @@ export default function Ventes() {
       </div>
 
       {/* ── Historique ── */}
-      {onglet === 'historique' && <HistoriqueVentes />}
+      {onglet === 'historique' && <div className="flex-1 lg:overflow-y-auto"><HistoriqueVentes /></div>}
 
       {/* ── Caisse ── */}
       {onglet === 'caisse' && (
-        <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden lg:min-h-0">
 
           {/* Colonne gauche : Catalogue */}
           <div className="flex-1 flex flex-col p-4 lg:p-6 gap-4 lg:overflow-hidden">
@@ -645,7 +661,7 @@ export default function Ventes() {
           <div className="hidden lg:flex w-96 flex-shrink-0 flex-col border-l border-slate-200 bg-white overflow-hidden">
 
             {/* En-tête panier */}
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <ShoppingCart size={16} className="text-indigo-500"/>
                 <span className="font-syne font-bold text-slate-800">Panier</span>
@@ -663,8 +679,9 @@ export default function Ventes() {
               )}
             </div>
 
-            {/* Lignes panier */}
-            <div className="flex-1 overflow-y-auto scrollbar-hide px-5">
+            {/* Zone qui défile : articles + infos de paiement */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            <div className="px-5">
               {panier.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40 text-slate-300">
                   <ShoppingCart size={28} className="mb-2 opacity-30"/>
@@ -728,6 +745,10 @@ export default function Ventes() {
                   </div>
                 </div>
 
+                {montantRecu === '' && (
+                  <p className="text-[10px] text-slate-400 -mt-2">Reçu vide = payé en totalité ({fmt(totalNet)} GNF)</p>
+                )}
+
                 {/* Suggestions montant */}
                 {totalNet > 0 && (
                   <div className="flex gap-1.5 flex-wrap">
@@ -760,8 +781,14 @@ export default function Ventes() {
                   )
                 )}
 
-                {/* Total + bouton */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-4">
+              </div>
+            )}
+            </div>{/* fin de la zone qui défile */}
+
+            {/* Bas fixe : total + bouton, toujours visibles */}
+            {panier.length > 0 && (
+              <div className="flex-shrink-0 border-t border-slate-200 bg-white p-4 shadow-[0_-6px_16px_rgba(15,23,42,0.06)]">
+                <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm text-slate-500">Sous-total</span>
                     <span className="text-sm font-mono text-slate-700">{fmt(totalHT)} GNF</span>
@@ -793,7 +820,7 @@ export default function Ventes() {
             <div className="lg:hidden fixed inset-0 z-50 flex justify-end">
               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
                 onClick={() => setPanierOuvert(false)}/>
-              <div className="relative w-full max-w-sm bg-white flex flex-col shadow-2xl animate-slide-in h-full overflow-hidden">
+              <div className="relative w-full max-w-sm bg-white flex flex-col shadow-2xl animate-slide-in h-[100dvh] max-h-full overflow-hidden">
 
                 {/* Header */}
                 <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 flex-shrink-0">
@@ -807,53 +834,70 @@ export default function Ventes() {
                   </button>
                 </div>
 
-                {/* Lignes */}
-                <div className="flex-1 overflow-y-auto px-5 scrollbar-hide">
-                  {panier.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-40 text-slate-300">
-                      <ShoppingCart size={28} className="mb-2 opacity-30"/>
-                      <p className="text-sm">Panier vide</p>
+                {/* Zone qui défile : articles + infos de paiement */}
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                  <div className="px-5">
+                    {panier.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-40 text-slate-300">
+                        <ShoppingCart size={28} className="mb-2 opacity-30"/>
+                        <p className="text-sm">Panier vide</p>
+                      </div>
+                    ) : panier.map(l => (
+                      <LignePanier key={l.produitId} ligne={l} onUpdate={mettreAJour} onRemove={supprimerDuPanier}/>
+                    ))}
+                  </div>
+
+                  {panier.length > 0 && (
+                    <div className="border-t border-slate-100 p-5 flex flex-col gap-3 bg-slate-50">
+                      <div className="flex flex-col gap-2">
+                        <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 transition-all"
+                          placeholder="Nom du client" value={client.nom} onChange={e => setClient(c => ({ ...c, nom:e.target.value }))}/>
+                        <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 transition-all"
+                          placeholder="Téléphone" value={client.telephone} onChange={e => setClient(c => ({ ...c, telephone:e.target.value }))}/>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id:'especes', label:'Espèces', Icon:CreditCard },
+                          { id:'mobile_money', label:'Mobile', Icon:Smartphone },
+                          { id:'mixte', label:'Mixte', Icon:Layers },
+                        ].map(m => (
+                          <button key={m.id} onClick={() => setMode(m.id)}
+                            className={`flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all
+                              ${modePaiement === m.id ? 'gradient-brand text-white shadow-md' : 'bg-white border border-slate-200 text-slate-500'}`}>
+                            <m.Icon size={14}/>{m.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="number" min="0" placeholder="Remise GNF" value={remise}
+                          onChange={e => setRemise(e.target.value)}
+                          className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400"/>
+                        <input type="number" min="0" placeholder={`Reçu: ${fmt(totalNet)}`} value={montantRecu}
+                          onChange={e => setMontantRecu(e.target.value)}
+                          className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400"/>
+                      </div>
+                      {montantRecu === '' && (
+                        <p className="text-[10px] text-slate-400 -mt-1">Reçu vide = payé en totalité ({fmt(totalNet)} GNF)</p>
+                      )}
+                      {montantRecu && (
+                        Number(montantRecu) < totalNet ? (
+                          <div className="flex justify-between px-3 py-2.5 rounded-xl border font-bold text-sm bg-red-50 border-red-100 text-red-600">
+                            <span>⚠ Reste à payer</span><span>{fmt(totalNet - Number(montantRecu))} GNF</span>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between px-3 py-2.5 rounded-xl border font-bold text-sm bg-emerald-50 border-emerald-100 text-emerald-600">
+                            <span>Monnaie à rendre</span><span>{fmt(monnaie)} GNF</span>
+                          </div>
+                        )
+                      )}
                     </div>
-                  ) : panier.map(l => (
-                    <LignePanier key={l.produitId} ligne={l} onUpdate={mettreAJour} onRemove={supprimerDuPanier}/>
-                  ))}
+                  )}
                 </div>
 
-                {/* Paiement mobile */}
+                {/* Bas fixe : Total + Valider, toujours visibles */}
                 {panier.length > 0 && (
-                  <div className="border-t border-slate-100 p-5 flex flex-col gap-3 bg-slate-50 overflow-y-auto flex-shrink-0">
-                    <div className="flex flex-col gap-2">
-                      <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 transition-all"
-                        placeholder="Nom du client" value={client.nom} onChange={e => setClient(c => ({ ...c, nom:e.target.value }))}/>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { id:'especes', label:'Espèces', Icon:CreditCard },
-                        { id:'mobile_money', label:'Mobile', Icon:Smartphone },
-                        { id:'mixte', label:'Mixte', Icon:Layers },
-                      ].map(m => (
-                        <button key={m.id} onClick={() => setMode(m.id)}
-                          className={`flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all
-                            ${modePaiement === m.id ? 'gradient-brand text-white shadow-md' : 'bg-white border border-slate-200 text-slate-500'}`}>
-                          <m.Icon size={14}/>{m.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="number" min="0" placeholder="Remise GNF" value={remise}
-                        onChange={e => setRemise(e.target.value)}
-                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400"/>
-                      <input type="number" min="0" placeholder={`Reçu: ${fmt(totalNet)}`} value={montantRecu}
-                        onChange={e => setMontantRecu(e.target.value)}
-                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400"/>
-                    </div>
-                    {montantRecu && (
-                      <div className={`flex justify-between px-3 py-2.5 rounded-xl border font-bold text-sm
-                        ${monnaie >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-red-50 border-red-100 text-red-500'}`}>
-                        <span>Monnaie</span><span>{fmt(monnaie)} GNF</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center py-2">
+                  <div className="flex-shrink-0 border-t border-slate-200 bg-white px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-6px_16px_rgba(15,23,42,0.06)]">
+                    <div className="flex justify-between items-center mb-3">
                       <span className="font-bold text-slate-900">Total</span>
                       <span className="font-syne text-xl font-bold text-indigo-600">{fmt(totalNet)} GNF</span>
                     </div>
