@@ -245,7 +245,7 @@ function ModaleDetailDette({ dette, onClose }) {
 // ─── Page principale ────────────────────────────────────────────────────────
 export default function Dettes() {
   const [search, setSearch]   = useState('');
-  const [statut, setStatut]   = useState('');
+  const [statut, setStatut]   = useState(() => new URLSearchParams(window.location.search).get('filtre') === 'retard' ? 'RETARD' : '');
   const [modaleForm, setModaleForm]     = useState(false);
   const [detteSelectionnee, setDetteSelectionnee] = useState(null);
 

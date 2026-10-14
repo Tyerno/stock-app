@@ -97,3 +97,37 @@ exports.modifierEcheance = async (req, res) => {
     res.status(400).json({ success:false, message: err.message });
   }
 };
+
+// Résumé pour le Dashboard : totaux calculés sur TOUTES les dettes en cours (pas seulement la 1re page).
+exports.getResume = async (req, res) => {
+  try {
+    const debut = Dette.debutJournee();
+    const estEnRetard = { $and: [{ $gt: ['$dateEcheance', null] }, { $lt: ['$dateEcheance', debut] }] };
+    const champs = 'client montantRestant dateEcheance createdAt';
+
+    const [agg, enRetard, recentes] = await Promise.all([
+      Dette.aggregate([
+        { $match: { statut: 'EN_COURS' } },
+        { $group: {
+            _id: null,
+            totalDu:       { $sum: '$montantRestant' },
+            nbEnCours:     { $sum: 1 },
+            nbRetard:      { $sum: { $cond: [estEnRetard, 1, 0] } },
+            montantRetard: { $sum: { $cond: [estEnRetard, '$montantRestant', 0] } },
+        } },
+      ]),
+      Dette.find({ statut: 'EN_COURS', dateEcheance: { $lt: debut } }).sort({ dateEcheance: 1 }).limit(5).select(champs).lean(),
+      Dette.find({ statut: 'EN_COURS' }).sort({ createdAt: -1 }).limit(5).select(champs).lean(),
+    ]);
+
+    const t = agg[0] || {};
+    res.json({ success: true, data: {
+      totalDu:       t.totalDu       || 0,
+      nbEnCours:     t.nbEnCours     || 0,
+      nbRetard:      t.nbRetard      || 0,
+      montantRetard: t.montantRetard || 0,
+      dettesEnRetard: enRetard,
+      dettesRecentes: recentes,
+    } });
+  } catch (err) { res.status(500).json({ success:false, message:err.message }); }
+};

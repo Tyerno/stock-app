@@ -57,10 +57,35 @@ function DashboardSkeleton() {
   );
 }
 
+// ─── Dettes : jours de retard + bandeau d'alerte ─────────────────────────────
+// Les échéances sont stockées à minuit UTC : comparaison en UTC.
+const joursDeRetard = (dateEcheance) => {
+  const debutJour = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
+  return Math.max(1, Math.round((debutJour - new Date(dateEcheance)) / 86_400_000));
+};
+
+function BandeauRetard({ resume }) {
+  if (!resume?.nbRetard) return null;
+  const n = resume.nbRetard;
+  return (
+    <Link to="/dettes?filtre=retard"
+      className="flex items-center gap-3 mb-5 px-4 py-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors animate-fade-up">
+      <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+        <AlertTriangle size={16} className="text-red-600"/>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold">{n} dette{n > 1 ? 's' : ''} en retard de paiement</p>
+        <p className="text-xs text-red-500">{fmt(resume.montantRetard)} GNF à récupérer</p>
+      </div>
+      <span className="flex items-center gap-1 text-xs font-semibold flex-shrink-0">Voir <ChevronRight size={12}/></span>
+    </Link>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // DASHBOARD ADMIN
 // ════════════════════════════════════════════════════════════════════════════
-function DashboardAdmin({ data, user, totalDu, dettesRecentes }) {
+function DashboardAdmin({ data, user, resume }) {
   const { kpis, graphe30Jours, topProduits, derniersMouvements, alertes } = data;
 
   const grapheMap = {};
@@ -105,6 +130,8 @@ function DashboardAdmin({ data, user, totalDu, dettesRecentes }) {
           <Activity size={13} className="text-emerald-400" />
         </div>
       </div>
+
+      <BandeauRetard resume={resume} />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
@@ -285,24 +312,42 @@ function DashboardAdmin({ data, user, totalDu, dettesRecentes }) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Total dû */}
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex flex-col justify-center">
-            <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1">Total dû (dettes en cours)</p>
-            <p className="font-syne text-2xl font-bold text-red-600">{fmtM(totalDu)} GNF</p>
+          {/* Total dû + retard */}
+          <div className="flex flex-col gap-3">
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex flex-col justify-center">
+              <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1">Total dû ({resume?.nbEnCours || 0} dette{(resume?.nbEnCours || 0) > 1 ? 's' : ''} en cours)</p>
+              <p className="font-syne text-2xl font-bold text-red-600">{fmtM(resume?.totalDu || 0)} GNF</p>
+            </div>
+            {resume?.nbRetard > 0 && (
+              <div className="bg-white border border-red-200 rounded-2xl p-4">
+                <p className="flex items-center gap-1 text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-1">
+                  <AlertTriangle size={11}/> En retard ({resume.nbRetard})
+                </p>
+                <p className="font-syne text-xl font-bold text-red-600">{fmtM(resume.montantRetard)} GNF</p>
+              </div>
+            )}
           </div>
 
-          {/* Dettes récentes */}
+          {/* À relancer (en retard) ou dettes récentes */}
           <div className="lg:col-span-2">
-            {dettesRecentes?.length === 0 ? (
+            {resume?.nbRetard > 0 && (
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">À relancer en priorité</p>
+            )}
+            {(resume?.dettesRecentes || []).length === 0 ? (
               <div className="flex items-center gap-3 text-emerald-600 bg-emerald-50 border border-emerald-100 px-4 py-3 rounded-xl h-full">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 dot-live"/>
                 <span className="text-sm font-medium">Aucune dette en cours ✓</span>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {dettesRecentes?.map(d => (
-                  <div key={d._id} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="text-xs font-medium text-slate-700 truncate">{d.client?.nom}</span>
+                {(resume?.nbRetard > 0 ? resume.dettesEnRetard : resume?.dettesRecentes)?.map(d => (
+                  <div key={d._id} className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="min-w-0">
+                      <span className="block text-xs font-medium text-slate-700 truncate">{d.client?.nom}</span>
+                      {resume?.nbRetard > 0 && (
+                        <span className="block text-[10px] text-red-500">{joursDeRetard(d.dateEcheance)} j de retard</span>
+                      )}
+                    </div>
                     <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-lg flex-shrink-0">{fmt(d.montantRestant)} GNF</span>
                   </div>
                 ))}
@@ -318,7 +363,8 @@ function DashboardAdmin({ data, user, totalDu, dettesRecentes }) {
 // ════════════════════════════════════════════════════════════════════════════
 // DASHBOARD GESTIONNAIRE
 // ════════════════════════════════════════════════════════════════════════════
-function DashboardGestionnaire({ data, user, totalDu }) {
+function DashboardGestionnaire({ data, user, resume }) {
+  const totalDu = resume?.totalDu || 0;
   const navigate  = useNavigate();
   const { kpis, alertes, derniersMouvements } = data;
 
@@ -349,6 +395,8 @@ function DashboardGestionnaire({ data, user, totalDu }) {
         </div>
         <p className="text-sm text-slate-400 ml-9">{new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}</p>
       </div>
+
+      <BandeauRetard resume={resume} />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
         {[
@@ -528,14 +576,13 @@ export default function Dashboard() {
     refetchInterval: 30_000,
   });
 
-  // Dettes en cours — requête secondaire, n'affecte pas l'état principal du dashboard si elle échoue
-  const { data: dettesActives } = useQuery({
+  // Résumé des dettes (totaux sur toutes les dettes en cours) — requête secondaire,
+  // n'affecte pas l'état principal du dashboard si elle échoue
+  const { data: resume } = useQuery({
     queryKey: ['dettes-dashboard'],
-    queryFn:  () => api.get('/dettes', { params: { statut: 'EN_COURS' } }).then(r => r.data.data),
+    queryFn:  () => api.get('/dettes/resume').then(r => r.data.data),
     refetchInterval: 30_000,
   });
-  const totalDu        = (dettesActives || []).reduce((s, d) => s + d.montantRestant, 0);
-  const dettesRecentes  = (dettesActives || []).slice(0, 5);
 
   if (isLoading) return <DashboardSkeleton />;
 
@@ -553,7 +600,7 @@ export default function Dashboard() {
     );
   }
 
-  if (user?.role === 'admin')        return <DashboardAdmin        data={data} user={user} totalDu={totalDu} dettesRecentes={dettesRecentes} />;
-  if (user?.role === 'gestionnaire') return <DashboardGestionnaire data={data} user={user} totalDu={totalDu} />;
+  if (user?.role === 'admin')        return <DashboardAdmin        data={data} user={user} resume={resume} />;
+  if (user?.role === 'gestionnaire') return <DashboardGestionnaire data={data} user={user} resume={resume} />;
   return <DashboardLecteur data={data} user={user} />;
 }

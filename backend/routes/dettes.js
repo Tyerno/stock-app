@@ -5,6 +5,7 @@ const { proteger, autoriser } = require('../middleware/auth');
 router.use(proteger);
 
 router.get('/',              ctrl.getDettes);
+router.get('/resume',        ctrl.getResume); // doit rester AVANT '/:id'
 router.get('/:id',           ctrl.getDette);
 router.post('/',             autoriser('admin','gestionnaire'), ctrl.creerDette);
 router.post('/:id/paiement', autoriser('admin','gestionnaire'), ctrl.ajouterPaiement);
