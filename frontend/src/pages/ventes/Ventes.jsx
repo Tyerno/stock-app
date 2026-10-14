@@ -76,7 +76,7 @@ function imprimerRecu(vente) {
 }
 
 // ─── Modal succès ─────────────────────────────────────────────────────────────
-function SuccessModal({ vente, onClose, onPrint, onCreerDette }) {
+function SuccessModal({ vente, onClose, onPrint, onCreerDette, detteAuto }) {
   const resteAPayer = Math.max(0, vente.totalNet - (vente.montantRecu || 0));
 
   useEffect(() => {
@@ -120,14 +120,27 @@ function SuccessModal({ vente, onClose, onPrint, onCreerDette }) {
             ))}
           </div>
 
-          {resteAPayer > 0 && vente.client?.nom && (
+          {resteAPayer > 0 && detteAuto === 'encours' && (
+            <div className="flex items-center justify-center gap-2 py-3 mb-3 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 text-sm font-semibold">
+              <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"/> Enregistrement de la dette…
+            </div>
+          )}
+          {resteAPayer > 0 && detteAuto === 'ok' && (
+            <div className="flex items-center justify-center gap-2 py-3 mb-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm font-semibold">
+              <HandCoins size={15}/> Dette de {fmt(resteAPayer)} GNF enregistrée pour {vente.client?.nom}
+            </div>
+          )}
+          {resteAPayer > 0 && detteAuto === 'erreur' && (
+            <p className="text-center text-[11px] text-red-500 mb-2">La dette n'a pas pu être enregistrée automatiquement. Réessayez avec le bouton ci-dessous.</p>
+          )}
+          {resteAPayer > 0 && vente.client?.nom && detteAuto !== 'ok' && detteAuto !== 'encours' && (
             <button onClick={() => onCreerDette(vente)}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition-all shadow-md shadow-red-200 active:scale-95 mb-3">
               <HandCoins size={15}/> Créer une dette pour {fmt(resteAPayer)} GNF
             </button>
           )}
 
-          {resteAPayer > 0 && !vente.client?.nom && (
+          {resteAPayer > 0 && !vente.client?.nom && !detteAuto && (
             <p className="text-center text-[11px] text-red-500 mb-3">
               Aucun nom de client : impossible de créer une dette pour ce reste. Ajoutez un nom lors de la prochaine vente.
             </p>
@@ -448,6 +461,7 @@ export default function Ventes() {
   const [remise, setRemise]             = useState('');
   const [successVente, setSuccessVente] = useState(null);
   const [venteADetteApres, setVenteADetteApres] = useState(null);
+  const [detteAuto, setDetteAuto] = useState(null); // null | 'encours' | 'ok' | 'erreur'
   const [onglet, setOnglet]             = useState('caisse');
   const [panierOuvert, setPanierOuvert] = useState(false); // mobile
 
@@ -506,9 +520,29 @@ export default function Ventes() {
 
   const mutation = useMutation({
     mutationFn: (data) => api.post('/ventes', data),
-    onSuccess: (r) => {
-      setSuccessVente(r.data.data);
+    onSuccess: (r, variables) => {
+      const vente = r.data.data;
+      setSuccessVente(vente);
+      setDetteAuto(null);
       setPanierOuvert(false);
+
+      // Paiement partiel : la dette du reste est créée automatiquement (liée à la vente).
+      const reste = Math.max(0, vente.totalNet - (vente.montantRecu || 0));
+      const nomClient = vente.client?.nom || variables.client?.nom;
+      if (reste > 0 && nomClient) {
+        setDetteAuto('encours');
+        api.post('/dettes', {
+          client: { nom: nomClient, telephone: vente.client?.telephone || variables.client?.telephone || '' },
+          montantInitial: reste,
+          vente: vente._id,
+        })
+          .then(() => {
+            setDetteAuto('ok');
+            qc.invalidateQueries({ queryKey:['dettes'] });
+            qc.invalidateQueries({ queryKey:['dettes-dashboard'] });
+          })
+          .catch(() => setDetteAuto('erreur'));
+      }
       viderPanier();
       qc.invalidateQueries({ queryKey:['produits-vente'] });
       qc.invalidateQueries({ queryKey:['dashboard'] });
@@ -807,7 +841,7 @@ export default function Ventes() {
                     className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white hover:opacity-90 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
                     {mutation.isPending
                       ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Enregistrement…</>
-                      : <><CheckCircle size={20}/> Valider la vente</>
+                      : <><CheckCircle size={20}/> {montantRecu !== '' && Number(montantRecu) < totalNet ? `Valider + dette de ${fmt(totalNet - Number(montantRecu))} GNF` : 'Valider la vente'}</>
                     }
                   </button>
                 </div>
@@ -905,7 +939,7 @@ export default function Ventes() {
                       className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white shadow-lg shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
                       {mutation.isPending
                         ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Enregistrement…</>
-                        : <><CheckCircle size={20}/> Valider</>
+                        : <><CheckCircle size={20}/> {montantRecu !== '' && Number(montantRecu) < totalNet ? `Valider + dette de ${fmt(totalNet - Number(montantRecu))}` : 'Valider'}</>
                       }
                     </button>
                   </div>
@@ -922,6 +956,7 @@ export default function Ventes() {
           vente={successVente}
           onClose={() => setSuccessVente(null)}
           onPrint={imprimerRecu}
+          detteAuto={detteAuto}
           onCreerDette={(v) => { setSuccessVente(null); setVenteADetteApres(v); }}
         />
       )}
