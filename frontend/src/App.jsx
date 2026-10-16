@@ -21,6 +21,8 @@ const Parametres     = lazy(() => import('./pages/parametres/Parametres'));
 const Statistiques   = lazy(() => import('./pages/statistiques/Statistiques'));
 const Previsions     = lazy(() => import('./pages/previsions/Previsions'));
 const Dettes         = lazy(() => import('./pages/dettes/Dettes'));
+const MotDePasseOublie         = lazy(() => import('./pages/auth/MotDePasseOublie'));
+const ReinitialiserMotDePasse  = lazy(() => import('./pages/auth/ReinitialiserMotDePasse'));
 
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -50,6 +52,8 @@ function AppRoutes() {
     <Routes>
       {/* Public */}
       <Route path="/connexion" element={!user ? <Connexion /> : <Navigate to="/" />} />
+      <Route path="/mot-de-passe-oublie" element={!user ? <MotDePasseOublie /> : <Navigate to="/" />} />
+      <Route path="/reinitialiser-mot-de-passe/:token" element={<ReinitialiserMotDePasse />} />
 
       {/* App */}
       <Route path="/" element={

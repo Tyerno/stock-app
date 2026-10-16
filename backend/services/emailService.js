@@ -247,3 +247,39 @@ exports.testerConnexion = async () => {
     return false;
   }
 };
+
+// ─── Email : Réinitialisation du mot de passe ─────────────────────────────────
+// Lance une erreur si l'envoi n'est pas possible : l'appelant décide quoi en faire.
+exports.envoyerReinitialisation = async ({ email, nom, lien }) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error('EMAIL_USER / EMAIL_PASS non configurés');
+  }
+  const prenom = String(nom || '').replace(/[<>&"]/g, '');
+
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6;">Bonjour ${prenom},</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.6;">
+      Vous avez demandé à réinitialiser votre mot de passe StockBTP. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.
+      Ce lien est valable <strong>30 minutes</strong> et ne peut être utilisé qu'une seule fois.
+    </p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${lien}"
+        style="display:inline-block;background:linear-gradient(135deg,#2563EB,#6366F1);color:#ffffff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">
+        Choisir un nouveau mot de passe →
+      </a>
+    </div>
+    <p style="margin:0 0 8px;font-size:12px;color:#6B7280;line-height:1.5;">
+      Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br/>
+      <span style="word-break:break-all;color:#2563EB;">${lien}</span>
+    </p>
+    <p style="margin:16px 0 0;font-size:12px;color:#9CA3AF;line-height:1.5;">
+      Vous n'êtes pas à l'origine de cette demande ? Ignorez simplement cet email : votre mot de passe ne sera pas modifié.
+    </p>`;
+
+  await transporter.sendMail({
+    from:    `"StockBTP 📦" <${process.env.EMAIL_USER}>`,
+    to:      email,
+    subject: 'Réinitialisation de votre mot de passe StockBTP',
+    html:    template('Mot de passe oublié', content),
+  });
+};

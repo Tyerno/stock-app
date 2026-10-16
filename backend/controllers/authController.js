@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { User } = require('../models');
+const { envoyerReinitialisation } = require('../services/emailService');
 
 const genToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '30d' });
 
@@ -28,3 +30,67 @@ exports.connexion = async (req, res) => {
 };
 
 exports.moi = (req, res) => res.json({ success: true, data: req.user });
+
+// ─── Mot de passe oublié ──────────────────────────────────────────────────────
+const hashJeton = (jeton) => crypto.createHash('sha256').update(String(jeton)).digest('hex');
+const DUREE_JETON_MS = 30 * 60 * 1000; // 30 minutes
+const MESSAGE_GENERIQUE = "Si un compte actif existe avec cette adresse, un email de réinitialisation vient d'être envoyé.";
+
+// Demande de réinitialisation. La réponse est TOUJOURS la même, que le compte existe ou non,
+// pour ne pas révéler quelles adresses sont enregistrées.
+exports.motDePasseOublie = async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ success: false, message: 'Adresse email requise' });
+
+    const user = await User.findOne({ email });
+    if (user && user.actif) {
+      const jeton = crypto.randomBytes(32).toString('hex');
+      user.resetTokenHash   = hashJeton(jeton);
+      user.resetTokenExpire = new Date(Date.now() + DUREE_JETON_MS);
+      await user.save({ validateBeforeSave: false });
+
+      const base = (process.env.APP_URL || (process.env.FRONTEND_URL || '').split(',')[0] || 'http://localhost:3000')
+        .trim().replace(/\/$/, '');
+      const lien = `${base}/reinitialiser-mot-de-passe/${jeton}`;
+
+      // Envoi sans attendre : la durée de réponse ne trahit pas l'existence du compte.
+      envoyerReinitialisation({ email: user.email, nom: user.nom, lien }).catch((e) => {
+        console.error('❌ Email de réinitialisation non envoyé :', e.message);
+        if (process.env.NODE_ENV !== 'production') console.log('🔗 Lien de réinitialisation (dev uniquement) :', lien);
+      });
+    }
+
+    res.json({ success: true, message: MESSAGE_GENERIQUE });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur, réessayez plus tard' });
+  }
+};
+
+// Choix du nouveau mot de passe avec le jeton reçu par email.
+exports.reinitialiserMotDePasse = async (req, res) => {
+  try {
+    const { motDePasse } = req.body || {};
+    if (typeof motDePasse !== 'string' || motDePasse.length < 8) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+
+    const user = await User.findOne({
+      resetTokenHash:   hashJeton(req.params.token),
+      resetTokenExpire: { $gt: new Date() },
+    }).select('+motDePasse +resetTokenHash +resetTokenExpire');
+
+    if (!user || !user.actif) {
+      return res.status(400).json({ success: false, message: 'Lien invalide ou expiré. Refaites une demande.' });
+    }
+
+    user.motDePasse       = motDePasse;   // haché par le hook pre('save')
+    user.resetTokenHash   = undefined;    // le lien ne peut servir qu'une fois
+    user.resetTokenExpire = undefined;
+    await user.save();
+
+    res.json({ success: true, message: 'Mot de passe mis à jour. Vous pouvez vous connecter.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur, réessayez plus tard' });
+  }
+};

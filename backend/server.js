@@ -9,6 +9,10 @@ require('dotenv').config();
 
 const app = express();
 
+// Derrière le proxy de Render : sans cela, toutes les requêtes paraissent venir de la même IP
+// et les limites de débit ci-dessous s'appliqueraient à tous les utilisateurs à la fois.
+app.set('trust proxy', 1);
+
 // ─── Sécurité — Headers HTTP ──────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
@@ -34,6 +38,26 @@ const limiterAuth = rateLimit({
   message: { success: false, message: 'Trop de tentatives de connexion' },
 });
 app.use('/api/auth/connexion', limiterAuth);
+
+// Mot de passe oublié : 5 demandes par heure et par adresse IP (évite l'envoi massif d'emails)
+const limiterOubli = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Trop de demandes. Réessayez dans une heure.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/mot-de-passe-oublie', limiterOubli);
+
+// Choix du nouveau mot de passe : 10 essais par heure et par IP (limite les tentatives sur les jetons)
+const limiterReinit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Trop de tentatives. Réessayez dans une heure.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/reinitialiser-mot-de-passe', limiterReinit);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));

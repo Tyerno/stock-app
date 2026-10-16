@@ -20,6 +20,9 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'gestionnaire', 'lecteur'], default: 'gestionnaire' },
   actif: { type: Boolean, default: true },
   derniereConnexion: Date,
+  // Réinitialisation du mot de passe : seul le HASH du jeton est stocké (le jeton lui-même n'est qu'envoyé par email)
+  resetTokenHash:   { type: String, select: false },
+  resetTokenExpire: { type: Date,   select: false },
 }, { timestamps: true });
 
 UserSchema.pre('save', async function (next) {
