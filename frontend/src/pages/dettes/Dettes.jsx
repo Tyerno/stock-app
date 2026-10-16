@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  HandCoins, Plus, Search, Check, WifiOff, Wallet, User, Receipt, CalendarClock, AlertTriangle,
+  HandCoins, Plus, Search, Check, WifiOff, Wallet, User, Receipt, CalendarClock, AlertTriangle, Printer,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { fmt, fmtDate, inputCls } from '../../utils/format';
+import { imprimerRecuPaiement } from '../../utils/recuDette';
 import Modal from '../../components/ui/Modal';
 import Table from '../../components/ui/Table';
 import EmptyState from '../../components/ui/EmptyState';
@@ -126,10 +127,21 @@ function ModaleDetailDette({ dette, onClose }) {
 
   const mutation = useMutation({
     mutationFn: () => api.post(`/dettes/${dette._id}/paiement`, { montant: Number(montant), note }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['dettes'] });
       qc.invalidateQueries({ queryKey: ['dettes-dashboard'] });
-      toast.success('Paiement enregistré ✓');
+      const maj = res.data?.data;
+      toast((t) => (
+        <span className="flex items-center gap-3 text-sm">
+          Paiement enregistré ✓
+          {maj?.paiements?.length > 0 && (
+            <button className="font-semibold text-indigo-600 underline underline-offset-2"
+              onClick={() => { toast.dismiss(t.id); imprimerRecuPaiement(maj, maj.paiements.length - 1); }}>
+              Imprimer le reçu
+            </button>
+          )}
+        </span>
+      ), { duration: 8000 });
       setMontant(''); setNote('');
       onClose();
     },
@@ -209,13 +221,20 @@ function ModaleDetailDette({ dette, onClose }) {
           </p>
           {dette.paiements?.length ? (
             <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-              {[...dette.paiements].reverse().map((p, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
-                  <div>
+              {dette.paiements.map((p, i) => ({ p, i })).reverse().map(({ p, i }) => (
+                <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-700">{fmt(p.montant)} GNF</p>
-                    {p.note && <p className="text-[11px] text-slate-400">{p.note}</p>}
+                    {p.note && <p className="text-[11px] text-slate-400 truncate">{p.note}</p>}
                   </div>
-                  <p className="text-[11px] text-slate-400">{fmtDate(p.date)}</p>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <p className="text-[11px] text-slate-400">{fmtDate(p.date)}</p>
+                    <button type="button" title="Imprimer le reçu" aria-label="Imprimer le reçu"
+                      onClick={() => imprimerRecuPaiement(dette, i)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
+                      <Printer size={14}/>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -336,8 +355,8 @@ export default function Dettes() {
         </div>
       ) : (
         <>
-          {/* Vue carte — mobile */}
-          <div className="sm:hidden flex flex-col gap-3 animate-fade-up-4">
+          {/* Vue cartes — mobile et tablette */}
+          <div className="xl:hidden grid grid-cols-1 md:grid-cols-2 gap-3 animate-fade-up-4">
             {dettes.map(d => (
               <div key={d._id} className="card-neu p-4 cursor-pointer active:scale-[0.99] transition-transform"
                 onClick={() => setDetteSelectionnee(d)}>
@@ -365,8 +384,8 @@ export default function Dettes() {
             ))}
           </div>
 
-          {/* Vue tableau — tablette / desktop */}
-          <div className="hidden sm:block animate-fade-up-4">
+          {/* Vue tableau — grand écran */}
+          <div className="hidden xl:block animate-fade-up-4">
           <Table columns={['Client','Téléphone', { label:'Montant initial', align:'right' }, { label:'Restant', align:'right' }, 'Statut', 'Échéance', 'Date']}>
             {dettes.map(d => (
               <tr key={d._id} className="cursor-pointer group" onClick={() => setDetteSelectionnee(d)}>
