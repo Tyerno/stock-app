@@ -350,7 +350,9 @@ function HistoriqueVentes() {
     }).then(r => r.data),
   });
 
-  const totalCA = data?.data?.reduce((s, v) => s + v.totalNet, 0) || 0;
+  const ventes = data?.data || [];
+  const afficherListe = !isLoading && !isError && ventes.length > 0;
+  const totalCA = ventes.reduce((s, v) => s + v.totalNet, 0);
 
   return (
     <div className="p-5 lg:p-7 flex flex-col gap-5">
@@ -374,16 +376,67 @@ function HistoriqueVentes() {
         </div>
       </div>
 
-      {/* Table */}
-      <Table
-        columns={['N° Vente','Client','Articles','Total','Paiement','Vendeur','Date','']}
-        loading={isLoading}
-        isEmpty={isError || data?.data?.length === 0}
-        emptyState={isError
-          ? <EmptyState icon={WifiOff} title="Impossible de charger les ventes" description="Vérifiez votre connexion et réessayez." />
-          : <EmptyState icon={Receipt} title="Aucune vente sur cette période" />}
-      >
-        {data?.data?.map(v => (
+      {/* Chargement / erreur / vide (tous écrans) */}
+      {!afficherListe && (
+        <Table
+          columns={['N° Vente','Client','Articles','Total','Paiement','Vendeur','Date','']}
+          loading={isLoading}
+          isEmpty={isError || ventes.length === 0}
+          emptyState={isError
+            ? <EmptyState icon={WifiOff} title="Impossible de charger les ventes" description="Vérifiez votre connexion et réessayez." />
+            : <EmptyState icon={Receipt} title="Aucune vente sur cette période" />}
+        />
+      )}
+
+      {afficherListe && (
+        <>
+          {/* Vue cartes — téléphone et tablette */}
+          <div className="xl:hidden grid grid-cols-1 md:grid-cols-2 gap-3">
+            {ventes.map(v => (
+              <div key={v._id} className="card-neu p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-mono font-bold text-indigo-600">{v.numero}</p>
+                    <p className="text-sm text-slate-700 truncate mt-0.5">{v.client?.nom || 'Comptoir'}</p>
+                  </div>
+                  <p className="text-[11px] text-slate-400 text-right flex-shrink-0">{fmtDate(v.createdAt)}</p>
+                </div>
+
+                <div className="flex items-end justify-between gap-3 mt-3 pt-3 border-t border-slate-100">
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total · {v.lignes.length} art.</p>
+                    <p className="text-base font-bold font-mono text-slate-800">{fmt(v.totalNet)} GNF</p>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap
+                    ${v.modePaiement === 'especes' ? 'bg-green-50 text-green-700'
+                      : v.modePaiement === 'mobile_money' ? 'bg-indigo-50 text-indigo-700'
+                      : 'bg-purple-50 text-purple-700'}`}>
+                    {v.modePaiement === 'mobile_money' ? '📱 Mobile' : v.modePaiement === 'mixte' ? '🔀 Mixte' : '💵 Espèces'}
+                  </span>
+                </div>
+
+                {v.vendeur?.nom && <p className="text-[11px] text-slate-400 mt-2">Vendeur : {v.vendeur.nom}</p>}
+
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => setRecuVente(v)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 active:scale-95 transition-all">
+                    <Printer size={13}/> Reçu
+                  </button>
+                  {v.client?.nom && (
+                    <button onClick={() => setVenteADette(v)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-red-50 text-red-600 active:scale-95 transition-all">
+                      <HandCoins size={13}/> Dette
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Vue tableau — grand écran */}
+          <div className="hidden xl:block">
+            <Table columns={['N° Vente','Client','Articles','Total','Paiement','Vendeur','Date','']}>
+              {ventes.map(v => (
                   <tr key={v._id} className="border-b border-slate-50 hover:bg-indigo-50/30 transition-colors group">
                     <td className="px-4 py-3.5 text-sm font-mono font-bold text-indigo-600">{v.numero}</td>
                     <td className="px-4 py-3.5 text-sm text-slate-700">{v.client?.nom || 'Comptoir'}</td>
@@ -414,8 +467,11 @@ function HistoriqueVentes() {
                       </div>
                     </td>
                   </tr>
-        ))}
-      </Table>
+              ))}
+            </Table>
+          </div>
+        </>
+      )}
 
       {/* Modal aperçu reçu */}
       {recuVente && (
