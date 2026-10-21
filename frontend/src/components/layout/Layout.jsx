@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import { memoriserBoutique } from '../../utils/boutique';
 
 const navPrincipal = [
   { to: '/',           label: 'Dashboard',   Icon: LayoutDashboard, exact: true },
@@ -106,6 +107,14 @@ export default function Layout() {
     refetchInterval: 60_000,
   });
   const alertesCount = (alertesData?.ruptures?.length || 0) + (alertesData?.faibles?.length || 0);
+
+  // Infos de la boutique (reçus) : la base de données fait foi. Tant qu'elle est vide, on garde la copie locale.
+  const { data: boutique } = useQuery({
+    queryKey: ['boutique'],
+    queryFn:  () => api.get('/boutique').then(r => r.data.data),
+    staleTime: 5 * 60_000,
+  });
+  useEffect(() => { if (boutique?.configure) memoriserBoutique(boutique); }, [boutique]);
 
   const handleLogout = () => { deconnexion(); navigate('/connexion'); };
   const sidebarProps = { user, nav: navPrincipal, alertesCount, onLogout: handleLogout };

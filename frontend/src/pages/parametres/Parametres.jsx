@@ -8,6 +8,7 @@ import {
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { inputCls } from '../../utils/format';
+import { CHAMPS_BOUTIQUE, lireBoutiqueLocale, memoriserBoutique } from '../../utils/boutique';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
@@ -30,56 +31,75 @@ const COULEURS = [
 
 // ─── Onglet Boutique ──────────────────────────────────────────────────────────
 function OngletBoutique() {
-  const [form, setForm] = useState({
-    nom:       localStorage.getItem('boutique_nom')       || 'StockBTP',
-    adresse:   localStorage.getItem('boutique_adresse')   || '',
-    telephone: localStorage.getItem('boutique_telephone') || '',
-    email:     localStorage.getItem('boutique_email')     || '',
-    devise:    localStorage.getItem('boutique_devise')    || 'GNF',
-    ville:     localStorage.getItem('boutique_ville')     || 'Conakry',
-    pays:      localStorage.getItem('boutique_pays')      || 'Guinée',
+  const qc = useQueryClient();
+  const { data: serveur, isLoading, isError } = useQuery({
+    queryKey: ['boutique'],
+    queryFn:  () => api.get('/boutique').then(r => r.data.data),
   });
+
+  if (isLoading) return <CenteredSpinner />;
+  if (isError)   return <EmptyState icon={AlertTriangle} title="Impossible de charger les informations" description="Vérifiez votre connexion et réessayez." />;
+
+  // Tant que rien n'est enregistré en base, on part de ce qui était saisi sur cet appareil (ancienne version).
+  const initial = serveur?.configure ? serveur : lireBoutiqueLocale();
+  return <FormulaireBoutique initial={initial} premiereFois={!serveur?.configure} qc={qc} />;
+}
+
+function FormulaireBoutique({ initial, premiereFois, qc }) {
+  const [form, setForm] = useState(() => CHAMPS_BOUTIQUE.reduce((o, k) => ({ ...o, [k]: initial[k] ?? '' }), {}));
   const [saved, setSaved] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const sauvegarder = () => {
-    Object.entries(form).forEach(([k, v]) => localStorage.setItem(`boutique_${k}`, v));
-    setSaved(true);
-    toast.success('Informations sauvegardées !');
-    setTimeout(() => setSaved(false), 2000);
-  };
+  const mutation = useMutation({
+    mutationFn: () => api.put('/boutique', form).then(r => r.data.data),
+    onSuccess: (data) => {
+      memoriserBoutique(data);
+      qc.setQueryData(['boutique'], data);
+      setSaved(true);
+      toast.success('Informations enregistrées pour tous les appareils ✓');
+      setTimeout(() => setSaved(false), 2000);
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur lors de la sauvegarde'),
+  });
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="font-syne text-lg font-bold text-slate-900 mb-1">Informations de la boutique</h2>
-        <p className="text-sm text-slate-400">Ces informations apparaîtront sur vos reçus de vente</p>
+        <p className="text-sm text-slate-400">Ces informations apparaîtront sur vos reçus, sur tous les appareils</p>
       </div>
+
+      {premiereFois && (
+        <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-2xl text-xs text-indigo-700 flex items-start gap-2">
+          <Info size={14} className="flex-shrink-0 mt-0.5"/>
+          <span>Ces informations ne sont pas encore enregistrées en ligne. Vérifiez-les puis cliquez sur « Sauvegarder » pour qu'elles s'appliquent partout.</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5 md:col-span-2">
           <label className="text-xs font-semibold text-slate-500">Nom de la boutique *</label>
-          <input className={inputCls} value={form.nom} onChange={e => set('nom', e.target.value)} placeholder="Ex: StockBTP Conakry"/>
+          <input className={inputCls} maxLength={80} value={form.nom} onChange={e => set('nom', e.target.value)} placeholder="Ex: StockBTP Conakry"/>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500">Téléphone</label>
-          <input className={inputCls} value={form.telephone} onChange={e => set('telephone', e.target.value)} placeholder="Ex: +224 620 00 00 00"/>
+          <input className={inputCls} maxLength={40} value={form.telephone} onChange={e => set('telephone', e.target.value)} placeholder="Ex: +224 620 00 00 00"/>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500">Email</label>
-          <input type="email" className={inputCls} value={form.email} onChange={e => set('email', e.target.value)} placeholder="contact@boutique.com"/>
+          <input type="email" className={inputCls} maxLength={120} value={form.email} onChange={e => set('email', e.target.value)} placeholder="contact@boutique.com"/>
         </div>
         <div className="flex flex-col gap-1.5 md:col-span-2">
           <label className="text-xs font-semibold text-slate-500">Adresse</label>
-          <input className={inputCls} value={form.adresse} onChange={e => set('adresse', e.target.value)} placeholder="Ex: Quartier Madina, Avenue du Commerce"/>
+          <input className={inputCls} maxLength={200} value={form.adresse} onChange={e => set('adresse', e.target.value)} placeholder="Ex: Quartier Madina, Avenue du Commerce"/>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500">Ville</label>
-          <input className={inputCls} value={form.ville} onChange={e => set('ville', e.target.value)} placeholder="Conakry"/>
+          <input className={inputCls} maxLength={80} value={form.ville} onChange={e => set('ville', e.target.value)} placeholder="Conakry"/>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500">Pays</label>
-          <input className={inputCls} value={form.pays} onChange={e => set('pays', e.target.value)} placeholder="Guinée"/>
+          <input className={inputCls} maxLength={80} value={form.pays} onChange={e => set('pays', e.target.value)} placeholder="Guinée"/>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500">Devise</label>
@@ -93,9 +113,9 @@ function OngletBoutique() {
       </div>
 
       <div className="flex justify-end">
-        <button onClick={sauvegarder}
+        <button onClick={() => mutation.mutate()} disabled={!form.nom.trim() || mutation.isPending}
           className={`btn shadow-md ${saved ? 'bg-green-500 text-white shadow-green-200' : 'gradient-brand text-white shadow-indigo-200 hover:opacity-90'}`}>
-          {saved ? <><Check size={15}/> Sauvegardé</> : <><Save size={15}/> Sauvegarder</>}
+          {mutation.isPending ? 'Enregistrement…' : saved ? <><Check size={15}/> Sauvegardé</> : <><Save size={15}/> Sauvegarder</>}
         </button>
       </div>
     </div>
