@@ -1,4 +1,5 @@
 import { fmt, fmtDate } from './format';
+import { logoRecuHtml } from './boutique';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -19,13 +20,15 @@ export function imprimerRecuPaiement(dette, index) {
   const nomBoutique = localStorage.getItem('boutique_nom')       || 'StockBTP';
   const adresse     = localStorage.getItem('boutique_adresse')   || 'Conakry, Guinée';
   const telephone   = localStorage.getItem('boutique_telephone') || '';
+  const logoHtml    = logoRecuHtml();
 
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
   <title>Reçu ${esc(numero)}</title>
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Courier New',monospace;width:80mm;margin:0 auto;padding:10px;font-size:12px;color:#111}.center{text-align:center}.bold{font-weight:700}.divider{border-top:1px dashed #aaa;margin:8px 0}.row{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;font-size:11px}.muted{color:#666}.total-row{display:flex;justify-content:space-between;font-size:14px;font-weight:700;border-top:1px solid #ccc;padding-top:6px;margin-top:6px}@media print{body{margin:0}}</style>
   </head><body>
   <div class="center" style="margin-bottom:12px">
-    <div class="bold" style="font-size:16px">⚡ ${esc(nomBoutique)}</div>
+    ${logoHtml}
+    <div class="bold" style="font-size:16px">${logoHtml ? '' : '⚡ '}${esc(nomBoutique)}</div>
     <div class="muted" style="font-size:10px">${esc(adresse)}</div>
     ${telephone ? `<div class="muted" style="font-size:10px">Tél: ${esc(telephone)}</div>` : ''}
     <div class="divider"></div>

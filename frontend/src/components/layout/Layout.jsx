@@ -4,12 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Package, ShoppingCart, ArrowLeftRight,
   Bell, Users, Settings, LogOut, Menu, X,
-  Zap, BarChart2, Brain, HandCoins,
+  BarChart2, Brain, HandCoins,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { memoriserBoutique } from '../../utils/boutique';
 import Horloge from './Horloge';
+import MarqueLogo from '../ui/MarqueLogo';
 
 const navPrincipal = [
   { to: '/',           label: 'Dashboard',   Icon: LayoutDashboard, exact: true },
@@ -33,9 +34,7 @@ function SidebarContent({ user, nav, alertesCount, onClose, onLogout }) {
       {/* Logo */}
       <div className="px-4 py-5 border-b border-slate-100">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-200">
-            <Zap size={18} className="text-white" />
-          </div>
+          <MarqueLogo taille={36} />
           <div>
             <p className="font-bold text-slate-900 text-sm leading-tight">StockBTP</p>
             <p className="text-[10px] text-slate-400">Gestion de stock</p>

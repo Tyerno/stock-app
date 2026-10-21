@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Store, Palette, Download, Settings2,
   Plus, Pencil, Trash2, Save, Check,
-  FileJson, FileText, AlertTriangle, Info
+  FileJson, FileText, AlertTriangle, Info, ImagePlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { inputCls } from '../../utils/format';
 import { CHAMPS_BOUTIQUE, lireBoutiqueLocale, memoriserBoutique } from '../../utils/boutique';
+import { preparerLogo } from '../../utils/logo';
+import MarqueLogo, { useLogoBoutique } from '../../components/ui/MarqueLogo';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
@@ -45,6 +47,70 @@ function OngletBoutique() {
   return <FormulaireBoutique initial={initial} premiereFois={!serveur?.configure} qc={qc} />;
 }
 
+// ─── Logo de la boutique ──────────────────────────────────────────────────────
+// Envoi immédiat (pas besoin de « Sauvegarder »). Si les infos de la boutique n'ont jamais été
+// enregistrées en base, on les enregistre avec le logo pour ne pas perdre la saisie locale.
+function CarteLogo({ form, premiereFois, qc }) {
+  const entree = useRef(null);
+  const [occupe, setOccupe] = useState(false);
+
+  const appliquer = (data) => {
+    memoriserBoutique(data);
+    qc.setQueryData(['boutique'], data);
+    qc.setQueryData(['boutique-public'], { nom: data.nom, logo: data.logo });
+  };
+
+  const envoyer = async (corps, message) => {
+    setOccupe(true);
+    try {
+      const data = await api.put('/boutique', premiereFois ? { ...form, ...corps } : corps).then(r => r.data.data);
+      appliquer(data);
+      toast.success(message);
+    } catch (e) {
+      toast.error(e.response?.data?.message || e.message || 'Erreur lors de l\'enregistrement du logo');
+    } finally {
+      setOccupe(false);
+      if (entree.current) entree.current.value = '';
+    }
+  };
+
+  const choisir = async (e) => {
+    const fichier = e.target.files?.[0];
+    if (!fichier) return;
+    try {
+      const logo = await preparerLogo(fichier);
+      await envoyer({ logo }, 'Logo enregistré ✓');
+    } catch (err) {
+      toast.error(err.message);
+      if (entree.current) entree.current.value = '';
+    }
+  };
+
+  const logoActuel = useLogoBoutique();
+
+  return (
+    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
+      <MarqueLogo taille={80} rond="rounded-2xl" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-800">Logo de la boutique</p>
+        <p className="text-xs text-slate-400 mt-0.5">Affiché dans le menu, sur la page de connexion et sur les reçus. PNG, JPG ou WebP — de préférence carré, fond transparent.</p>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <input ref={entree} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={choisir}/>
+          <button type="button" onClick={() => entree.current?.click()} disabled={occupe} className="btn-secondary btn-sm">
+            <ImagePlus size={14}/> {occupe ? 'Envoi…' : logoActuel ? 'Changer le logo' : 'Choisir une image'}
+          </button>
+          {logoActuel && (
+            <button type="button" disabled={occupe} onClick={() => envoyer({ logo: '' }, 'Logo retiré')}
+              className="btn btn-sm bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">
+              <Trash2 size={14}/> Retirer
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FormulaireBoutique({ initial, premiereFois, qc }) {
   const [form, setForm] = useState(() => CHAMPS_BOUTIQUE.reduce((o, k) => ({ ...o, [k]: initial[k] ?? '' }), {}));
   const [saved, setSaved] = useState(false);
@@ -75,6 +141,8 @@ function FormulaireBoutique({ initial, premiereFois, qc }) {
           <span>Ces informations ne sont pas encore enregistrées en ligne. Vérifiez-les puis cliquez sur « Sauvegarder » pour qu'elles s'appliquent partout.</span>
         </div>
       )}
+
+      <CarteLogo form={form} premiereFois={premiereFois} qc={qc} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5 md:col-span-2">
@@ -253,34 +321,60 @@ function OngletCategories() {
 }
 
 // ─── Onglet Préférences ───────────────────────────────────────────────────────
+// Enregistrées en base (même fiche que les infos de la boutique) : valables sur tous les appareils.
 function OngletPreferences() {
-  const [prefs, setPrefs] = useState({
-    seuilDefaut:  localStorage.getItem('pref_seuil')    || '10',
-    alerteEmail:  localStorage.getItem('pref_email')    || '',
-    affichageQte: localStorage.getItem('pref_qte')      || 'unite',
+  const qc = useQueryClient();
+  const { data: serveur, isLoading, isError } = useQuery({
+    queryKey: ['boutique'],
+    queryFn:  () => api.get('/boutique').then(r => r.data.data),
   });
+
+  if (isLoading) return <CenteredSpinner />;
+  if (isError)   return <EmptyState icon={AlertTriangle} title="Impossible de charger les préférences" description="Vérifiez votre connexion et réessayez." />;
+  return <FormulairePreferences initial={serveur} qc={qc} />;
+}
+
+function FormulairePreferences({ initial, qc }) {
+  const [prefs, setPrefs] = useState({
+    seuilDefaut:  String(initial?.seuilDefaut ?? 10),
+    emailAlertes: initial?.emailAlertes || '',
+  });
+  const [saved, setSaved] = useState(false);
   const set = (k, v) => setPrefs(p => ({ ...p, [k]: v }));
 
-  const sauvegarder = () => {
-    Object.entries(prefs).forEach(([k, v]) => localStorage.setItem(`pref_${k}`, v));
-    toast.success('Préférences sauvegardées !');
-  };
+  const seuilValide = /^\d+$/.test(prefs.seuilDefaut.trim());
+  const emailValide = !prefs.emailAlertes.trim() || /^\S+@\S+\.\S+$/.test(prefs.emailAlertes.trim());
+
+  const mutation = useMutation({
+    mutationFn: () => api.put('/boutique', {
+      seuilDefaut:  Number(prefs.seuilDefaut),
+      emailAlertes: prefs.emailAlertes.trim(),
+    }).then(r => r.data.data),
+    onSuccess: (data) => {
+      qc.setQueryData(['boutique'], (old) => ({ ...(old || {}), ...data }));
+      setSaved(true);
+      toast.success('Préférences enregistrées ✓');
+      setTimeout(() => setSaved(false), 2000);
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Erreur lors de la sauvegarde'),
+  });
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="font-syne text-lg font-bold text-slate-900 mb-1">Préférences</h2>
-        <p className="text-sm text-slate-400">Configurez le comportement de l'application</p>
+        <p className="text-sm text-slate-400">Configurez le comportement de l'application, sur tous les appareils</p>
       </div>
 
       <div className="flex flex-col gap-4">
         <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-800">Seuil d'alerte par défaut</p>
-              <p className="text-xs text-slate-400 mt-0.5">Quantité minimum avant déclenchement d'une alerte</p>
+              <p className="text-xs text-slate-400 mt-0.5">Proposé quand vous créez un nouveau produit. Les produits existants ne changent pas.</p>
             </div>
-            <input type="number" min="0" className="w-20 bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 text-center"
+            <input type="number" min="0" step="1" inputMode="numeric"
+              className={`w-20 flex-shrink-0 bg-slate-50 border text-slate-800 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 text-center ${seuilValide ? 'border-slate-200' : 'border-red-300'}`}
               value={prefs.seuilDefaut} onChange={e => set('seuilDefaut', e.target.value)}/>
           </div>
         </div>
@@ -289,28 +383,19 @@ function OngletPreferences() {
           <div className="flex flex-col gap-2">
             <div>
               <p className="text-sm font-semibold text-slate-800">Email pour les alertes</p>
-              <p className="text-xs text-slate-400 mt-0.5">Recevez les alertes de stock par email (bientôt disponible)</p>
+              <p className="text-xs text-slate-400 mt-0.5">Reçoit les alertes de stock et le résumé quotidien. Laissez vide pour utiliser l'adresse configurée sur le serveur.</p>
             </div>
-            <input type="email" className={inputCls} value={prefs.alerteEmail}
-              onChange={e => set('alerteEmail', e.target.value)} placeholder="votre@email.com"/>
-          </div>
-        </div>
-
-        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
-          <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5"/>
-          <div>
-            <p className="text-sm font-semibold text-amber-700">Réinitialiser les données</p>
-            <p className="text-xs text-amber-600 mt-0.5 mb-3">Cette action supprime définitivement toutes les données de test.</p>
-            <button className="btn btn-sm bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">
-              Contacter l'administrateur
-            </button>
+            <input type="email" maxLength={120} className={`${inputCls} ${emailValide ? '' : '!border-red-300'}`} value={prefs.emailAlertes}
+              onChange={e => set('emailAlertes', e.target.value)} placeholder="votre@email.com"/>
+            {!emailValide && <p className="text-xs text-red-500">Adresse email invalide.</p>}
           </div>
         </div>
       </div>
 
       <div className="flex justify-end">
-        <button onClick={sauvegarder} className="btn-primary shadow-md shadow-indigo-200">
-          <Save size={15}/> Sauvegarder
+        <button onClick={() => mutation.mutate()} disabled={!seuilValide || !emailValide || mutation.isPending}
+          className={`btn shadow-md ${saved ? 'bg-green-500 text-white shadow-green-200' : 'btn-primary shadow-indigo-200'}`}>
+          {mutation.isPending ? 'Enregistrement…' : saved ? <><Check size={15}/> Sauvegardé</> : <><Save size={15}/> Sauvegarder</>}
         </button>
       </div>
     </div>

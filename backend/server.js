@@ -60,6 +60,8 @@ const limiterReinit = rateLimit({
 app.use('/api/auth/reinitialiser-mot-de-passe', limiterReinit);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
+// Le logo de la boutique (image réduite en base64) dépasse 10 Ko : limite relevée pour cette seule route.
+app.use('/api/boutique', express.json({ limit: '200kb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(mongoSanitize());
