@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { memoriserBoutique } from '../../utils/boutique';
+import Horloge from './Horloge';
 
 const navPrincipal = [
   { to: '/',           label: 'Dashboard',   Icon: LayoutDashboard, exact: true },
@@ -149,6 +150,7 @@ export default function Layout() {
           </button>
           <PageTitle />
           <div className="ml-auto flex items-center gap-2">
+            <Horloge />
             {alertesCount > 0 && (
               <NavLink to="/alertes" className="relative btn-icon text-slate-500">
                 <Bell size={18} />
@@ -176,7 +178,7 @@ export default function Layout() {
 function PageTitle() {
   const { pathname } = useLocation();
   const titles = {
-    '/':                '/dashboard',
+    '/':                'Dashboard',
     '/produits':        'Produits',
     '/ventes':          'Ventes',
     '/mouvements':      'Mouvements de stock',
