@@ -1,4 +1,5 @@
 const Dette = require('../models/Dette');
+const { conditionRecherche } = require('../utils/recherche');
 
 // Convertit une valeur reçue (AAAA-MM-JJ ou ISO) en Date valide, ou renvoie null si invalide.
 const lireDate = (valeur) => {
@@ -11,7 +12,8 @@ exports.getDettes = async (req, res) => {
     const { page=1, limit=50, statut, search, enRetard } = req.query;
     const filtre = {};
     if (statut) filtre.statut = statut;
-    if (search) filtre['client.nom'] = { $regex: search, $options: 'i' };
+    const rech = conditionRecherche(search, ['client.nom', 'client.telephone']);
+    if (rech) Object.assign(filtre, rech);
     if (enRetard === 'true') {
       filtre.statut = 'EN_COURS';
       filtre.dateEcheance = { $lt: Dette.debutJournee() };

@@ -1,11 +1,13 @@
 const Produit   = require('../models/Produit');
 const Mouvement = require('../models/Mouvement');
+const { conditionRecherche } = require('../utils/recherche');
 
 exports.getProduits = async (req, res) => {
   try {
     const { page=1, limit=50, search, categorie, statut, sortBy='nom', order='asc' } = req.query;
     const filtre = { actif: true };
-    if (search)   filtre.$text = { $search: search };
+    const rech = conditionRecherche(search, ['nom', 'reference']);
+    if (rech) Object.assign(filtre, rech);
     if (categorie) filtre.categorie = categorie;
     if (statut === 'rupture') filtre.quantiteStock = 0;
     if (statut === 'faible')  filtre.$expr = { $lte: ['$quantiteStock','$seuilAlerte'] };
