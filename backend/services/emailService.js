@@ -1,13 +1,63 @@
 const nodemailer = require('nodemailer');
+const Boutique   = require('../models/Boutique');
 
-// ─── Transporteur Gmail ───────────────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
+// ─── Transport d'envoi ────────────────────────────────────────────────────────
+// Deux modes, choisis automatiquement :
+//  • BREVO_API_KEY défini  → envoi par l'API web de Brevo (HTTPS). À utiliser sur Render (offre
+//    gratuite) car les ports SMTP sortants y sont bloqués.
+//  • sinon                 → SMTP Gmail via nodemailer (EMAIL_USER + EMAIL_PASS), pratique en local.
+// L'expéditeur est toujours EMAIL_USER (avec Brevo, cette adresse doit être validée comme expéditeur).
+const smtp = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
 });
+
+const modeApi = () => !!process.env.BREVO_API_KEY;
+
+async function appelBrevo(chemin, options = {}) {
+  const rep = await fetch(`https://api.brevo.com/v3${chemin}`, {
+    ...options,
+    headers: { 'api-key': process.env.BREVO_API_KEY, accept: 'application/json', 'content-type': 'application/json' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!rep.ok) {
+    const corps = await rep.json().catch(() => ({}));
+    throw new Error(`Brevo ${rep.status} : ${corps.message || 'requête refusée'}`);
+  }
+  return rep;
+}
+
+const transporter = {
+  async sendMail({ from, to, subject, html }) {
+    if (!modeApi()) return smtp.sendMail({ from, to, subject, html });
+    const m = /^"?(.*?)"?\s*<(.+)>$/.exec(String(from));
+    await appelBrevo('/smtp/email', {
+      method: 'POST',
+      body: JSON.stringify({
+        sender: { name: m ? m[1] : 'StockBTP', email: m ? m[2] : process.env.EMAIL_USER },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+  },
+  async verify() {
+    if (!modeApi()) return smtp.verify();
+    await appelBrevo('/account');
+  },
+};
+
+// Destinataire des alertes : l'adresse saisie dans Paramètres > Préférences, sinon EMAIL_DEST (serveur).
+async function destinataire() {
+  try {
+    const b = await Boutique.findOne().select('emailAlertes').lean();
+    if (b?.emailAlertes) return b.emailAlertes;
+  } catch { /* base indisponible : on retombe sur la variable d'environnement */ }
+  return process.env.EMAIL_DEST || '';
+}
 
 // ─── Template HTML de base ────────────────────────────────────────────────────
 function template(title, content, color = '#2563EB') {
@@ -58,7 +108,9 @@ function template(title, content, color = '#2563EB') {
 
 // ─── Email : Alerte stock faible ──────────────────────────────────────────────
 exports.envoyerAlerteStock = async (produits) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_DEST) return;
+  if (!process.env.EMAIL_USER) return;
+  const dest = await destinataire();
+  if (!dest) return;
 
   const ruptures = produits.filter(p => p.quantiteStock === 0);
   const faibles  = produits.filter(p => p.quantiteStock > 0);
@@ -113,17 +165,19 @@ exports.envoyerAlerteStock = async (produits) => {
 
   await transporter.sendMail({
     from:    `"StockBTP 📦" <${process.env.EMAIL_USER}>`,
-    to:      process.env.EMAIL_DEST,
+    to:      dest,
     subject: `⚠️ Alerte Stock — ${produits.length} produit(s) à vérifier`,
     html:    template('Alerte de Stock', content, '#DC2626'),
   });
 
-  console.log(`✅ Email alerte stock envoyé à ${process.env.EMAIL_DEST}`);
+  console.log(`✅ Email alerte stock envoyé à ${dest}`);
 };
 
 // ─── Email : Résumé quotidien ─────────────────────────────────────────────────
 exports.envoyerResumequotidien = async ({ ventes, alertes, valeurStock, ca }) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_DEST) return;
+  if (!process.env.EMAIL_USER) return;
+  const dest = await destinataire();
+  if (!dest) return;
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
 
@@ -176,7 +230,7 @@ exports.envoyerResumequotidien = async ({ ventes, alertes, valeurStock, ca }) =>
 
   await transporter.sendMail({
     from:    `"StockBTP 📦" <${process.env.EMAIL_USER}>`,
-    to:      process.env.EMAIL_DEST,
+    to:      dest,
     subject: `📊 Résumé du jour — ${ventes} vente(s) · ${fmt(ca)} GNF`,
     html:    template('Résumé Quotidien', content),
   });
@@ -186,7 +240,9 @@ exports.envoyerResumequotidien = async ({ ventes, alertes, valeurStock, ca }) =>
 
 // ─── Email : Alerte vente importante ─────────────────────────────────────────
 exports.envoyerAlerteVente = async (vente) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_DEST) return;
+  if (!process.env.EMAIL_USER) return;
+  const dest = await destinataire();
+  if (!dest) return;
   if (!process.env.SEUIL_VENTE_ALERTE) return;
   if (vente.totalNet < Number(process.env.SEUIL_VENTE_ALERTE)) return;
 
@@ -228,7 +284,7 @@ exports.envoyerAlerteVente = async (vente) => {
 
   await transporter.sendMail({
     from:    `"StockBTP 📦" <${process.env.EMAIL_USER}>`,
-    to:      process.env.EMAIL_DEST,
+    to:      dest,
     subject: `💰 Vente importante — ${fmt(vente.totalNet)} GNF (${vente.numero})`,
     html:    template('Vente Importante', content, '#16A34A'),
   });
@@ -251,8 +307,8 @@ exports.testerConnexion = async () => {
 // ─── Email : Réinitialisation du mot de passe ─────────────────────────────────
 // Lance une erreur si l'envoi n'est pas possible : l'appelant décide quoi en faire.
 exports.envoyerReinitialisation = async ({ email, nom, lien }) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    throw new Error('EMAIL_USER / EMAIL_PASS non configurés');
+  if (!process.env.EMAIL_USER || !(process.env.BREVO_API_KEY || process.env.EMAIL_PASS)) {
+    throw new Error('EMAIL_USER et (BREVO_API_KEY ou EMAIL_PASS) non configurés');
   }
   const prenom = String(nom || '').replace(/[<>&"]/g, '');
 

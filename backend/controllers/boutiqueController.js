@@ -1,9 +1,12 @@
 const Boutique = require('../models/Boutique');
 
-const CHAMPS = ['nom', 'adresse', 'telephone', 'email', 'ville', 'pays', 'devise'];
+const CHAMPS = ['nom', 'adresse', 'telephone', 'email', 'ville', 'pays', 'devise', 'emailAlertes'];
 const DEVISES = ['GNF', 'USD', 'EUR', 'XOF'];
 
-const publier = (doc) => CHAMPS.reduce((o, k) => ({ ...o, [k]: doc[k] ?? '' }), {});
+const publier = (doc) => ({
+  ...CHAMPS.reduce((o, k) => ({ ...o, [k]: doc[k] ?? '' }), {}),
+  seuilDefaut: doc.seuilDefaut ?? 10,
+});
 
 // Lecture : tous les utilisateurs connectés (les reçus en ont besoin).
 // `configure: false` tant qu'aucune information n'a été enregistrée en base.
@@ -25,6 +28,14 @@ exports.modifierBoutique = async (req, res) => {
         return res.status(400).json({ success: false, message: `Valeur invalide pour « ${k} »` });
       }
       propre[k] = corps[k].trim();
+      if (k === 'email' || k === 'emailAlertes') propre[k] = propre[k].toLowerCase();
+    }
+    if (corps.seuilDefaut !== undefined) {
+      const n = Number(corps.seuilDefaut);
+      if (corps.seuilDefaut === '' || corps.seuilDefaut === null || !Number.isInteger(n) || n < 0 || n > 1000000) {
+        return res.status(400).json({ success: false, message: "Le seuil d'alerte doit être un nombre entier positif" });
+      }
+      propre.seuilDefaut = n;
     }
     if ('nom' in propre && !propre.nom) {
       return res.status(400).json({ success: false, message: 'Le nom de la boutique est obligatoire' });
@@ -34,6 +45,9 @@ exports.modifierBoutique = async (req, res) => {
     }
     if (propre.email && !/^\S+@\S+\.\S+$/.test(propre.email)) {
       return res.status(400).json({ success: false, message: 'Adresse email invalide' });
+    }
+    if (propre.emailAlertes && !/^\S+@\S+\.\S+$/.test(propre.emailAlertes)) {
+      return res.status(400).json({ success: false, message: "Adresse email des alertes invalide" });
     }
     const doc = await Boutique.findOneAndUpdate({}, { $set: propre }, {
       upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true,
