@@ -228,12 +228,12 @@ function OngletCategories() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="font-syne text-lg font-bold text-slate-900 mb-1">Catégories de produits</h2>
           <p className="text-sm text-slate-400">{cats?.length || 0} catégorie(s) configurée(s)</p>
         </div>
-        <button onClick={() => ouvrirModale()} className="btn-primary">
+        <button onClick={() => ouvrirModale()} className="btn-primary w-full sm:w-auto justify-center whitespace-nowrap">
           <Plus size={15}/> Nouvelle catégorie
         </button>
       </div>
@@ -257,11 +257,12 @@ function OngletCategories() {
                 <p className="text-sm font-semibold text-slate-800 truncate">{c.nom}</p>
                 <p className="text-xs text-slate-400">{c.nombreProduits || 0} produit(s)</p>
               </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => ouvrirModale(c)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"><Pencil size={13}/></button>
-                <button onClick={() => setASupprimer(c)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13}/></button>
+              {/* Toujours visibles au tactile ; au survol seulement sur ordinateur (lg et plus) */}
+              <div className="flex gap-1 lg:opacity-0 lg:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                <button onClick={() => ouvrirModale(c)} title="Modifier" aria-label={`Modifier ${c.nom}`}
+                  className="p-2.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"><Pencil size={15}/></button>
+                <button onClick={() => setASupprimer(c)} title="Supprimer" aria-label={`Supprimer ${c.nom}`}
+                  className="p-2.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={15}/></button>
               </div>
             </div>
           ))}
@@ -294,8 +295,8 @@ function OngletCategories() {
               <label className="text-xs font-semibold text-slate-500">Couleur</label>
               <div className="flex flex-wrap gap-2">
                 {COULEURS.map(c => (
-                  <button key={c} onClick={() => setForm(f=>({...f,couleur:c}))}
-                    className={`w-8 h-8 rounded-xl transition-all hover:scale-110 ${form.couleur === c ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''}`}
+                  <button key={c} type="button" onClick={() => setForm(f=>({...f,couleur:c}))} aria-label={`Couleur ${c}`}
+                    className={`w-9 h-9 rounded-xl transition-all hover:scale-110 ${form.couleur === c ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''}`}
                     style={{ background: c }}/>
                 ))}
               </div>
