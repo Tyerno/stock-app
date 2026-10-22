@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Store, Palette, Download, Settings2,
+  Store, Palette, Download, Settings2, UserCircle,
   Plus, Pencil, Trash2, Save, Check,
   FileJson, FileText, AlertTriangle, Info, ImagePlus
 } from 'lucide-react';
@@ -10,6 +10,7 @@ import api from '../../utils/api';
 import { inputCls } from '../../utils/format';
 import { CHAMPS_BOUTIQUE, lireBoutiqueLocale, memoriserBoutique } from '../../utils/boutique';
 import { preparerLogo } from '../../utils/logo';
+import { ContenuCompte } from '../compte/MonCompte';
 import MarqueLogo, { useLogoBoutique } from '../../components/ui/MarqueLogo';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -21,6 +22,7 @@ const TABS = [
   { id:'boutique',    label:'Boutique',    Icon:Store    },
   { id:'categories',  label:'Catégories',  Icon:Palette  },
   { id:'preferences', label:'Préférences', Icon:Settings2 },
+  { id:'compte',      label:'Mon compte',  Icon:UserCircle },
   { id:'export',      label:'Export',      Icon:Download  },
 ];
 
@@ -505,6 +507,7 @@ export default function Parametres() {
     boutique:    <OngletBoutique />,
     categories:  <OngletCategories />,
     preferences: <OngletPreferences />,
+    compte:      <ContenuCompte />,
     export:      <OngletExport />,
   };
 

@@ -37,12 +37,20 @@ export function AuthProvider({ children }) {
 
   const deconnexion = () => clearSession();
 
+  // Met à jour la session après un changement de nom ou de mot de passe (nouveau jeton éventuel).
+  const majSession = (utilisateur, token) => {
+    if (token) localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(utilisateur));
+    setUser(utilisateur);
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       loading,
       connexion,
       deconnexion,
+      majSession,
       isAdmin:    ['admin'].includes(user?.role),
       peutEcrire: ['admin', 'gestionnaire'].includes(user?.role),
     }}>

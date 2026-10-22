@@ -20,6 +20,8 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'gestionnaire', 'lecteur'], default: 'gestionnaire' },
   actif: { type: Boolean, default: true },
   derniereConnexion: Date,
+  // Date du dernier changement de mot de passe : les sessions ouvertes avant sont refusées (voir middleware/auth.js)
+  motDePasseChangeLe: Date,
   // Réinitialisation du mot de passe : seul le HASH du jeton est stocké (le jeton lui-même n'est qu'envoyé par email)
   resetTokenHash:   { type: String, select: false },
   resetTokenExpire: { type: Date,   select: false },
@@ -28,6 +30,7 @@ const UserSchema = new mongoose.Schema({
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('motDePasse')) return next();
   this.motDePasse = await bcrypt.hash(this.motDePasse, 12);
+  this.motDePasseChangeLe = new Date();
   next();
 });
 

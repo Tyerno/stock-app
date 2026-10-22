@@ -59,6 +59,16 @@ const limiterReinit = rateLimit({
 });
 app.use('/api/auth/reinitialiser-mot-de-passe', limiterReinit);
 
+// Changement de mot de passe depuis « Mon compte » : 10 essais par 15 minutes et par IP
+const limiterMdp = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/mot-de-passe', limiterMdp);
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 // Le logo de la boutique (image réduite en base64) dépasse 10 Ko : limite relevée pour cette seule route.
 app.use('/api/boutique', express.json({ limit: '200kb' }));

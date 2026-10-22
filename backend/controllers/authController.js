@@ -31,6 +31,48 @@ exports.connexion = async (req, res) => {
 
 exports.moi = (req, res) => res.json({ success: true, data: req.user });
 
+// ─── Mon compte ───────────────────────────────────────────────────────────────
+const profilPublic = (u) => ({ id: u._id, nom: u.nom, email: u.email, role: u.role });
+
+// Modifier son propre nom (l'email et le rôle ne se changent pas ici).
+exports.modifierProfil = async (req, res) => {
+  try {
+    const nom = typeof req.body?.nom === 'string' ? req.body.nom.trim() : '';
+    if (nom.length < 2 || nom.length > 60) {
+      return res.status(400).json({ success: false, message: 'Le nom doit contenir entre 2 et 60 caractères' });
+    }
+    const user = await User.findById(req.user._id);
+    user.nom = nom;
+    await user.save({ validateBeforeSave: false });
+    res.json({ success: true, data: profilPublic(user), message: 'Nom mis à jour' });
+  } catch (err) { res.status(400).json({ success: false, message: err.message }); }
+};
+
+// Changer son propre mot de passe : exige le mot de passe actuel. Les autres sessions sont invalidées
+// (voir middleware/auth.js) ; un nouveau jeton est renvoyé pour que cet appareil reste connecté.
+// NB : les erreurs de saisie répondent 400 (et non 401) pour ne pas déclencher la déconnexion automatique du client.
+exports.changerMotDePasse = async (req, res) => {
+  try {
+    const { motDePasseActuel, nouveauMotDePasse } = req.body || {};
+    if (typeof motDePasseActuel !== 'string' || typeof nouveauMotDePasse !== 'string' || !motDePasseActuel) {
+      return res.status(400).json({ success: false, message: 'Mot de passe actuel et nouveau mot de passe requis' });
+    }
+    if (nouveauMotDePasse.length < 8 || nouveauMotDePasse.length > 72) {
+      return res.status(400).json({ success: false, message: 'Le nouveau mot de passe doit contenir entre 8 et 72 caractères' });
+    }
+    const user = await User.findById(req.user._id).select('+motDePasse');
+    if (!(await user.verifierMotDePasse(motDePasseActuel))) {
+      return res.status(400).json({ success: false, message: 'Mot de passe actuel incorrect' });
+    }
+    if (nouveauMotDePasse === motDePasseActuel) {
+      return res.status(400).json({ success: false, message: "Le nouveau mot de passe doit être différent de l'ancien" });
+    }
+    user.motDePasse = nouveauMotDePasse;
+    await user.save(); // hash + motDePasseChangeLe via le hook du modèle
+    res.json({ success: true, token: genToken(user._id), data: profilPublic(user), message: 'Mot de passe mis à jour. Vos autres appareils sont déconnectés.' });
+  } catch (err) { res.status(400).json({ success: false, message: err.message }); }
+};
+
 // ─── Mot de passe oublié ──────────────────────────────────────────────────────
 const hashJeton = (jeton) => crypto.createHash('sha256').update(String(jeton)).digest('hex');
 const DUREE_JETON_MS = 30 * 60 * 1000; // 30 minutes

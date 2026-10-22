@@ -78,16 +78,19 @@ function SidebarContent({ user, nav, alertesCount, onClose, onLogout }) {
 
       {/* User */}
       <div className="border-t border-slate-100 p-3">
-        <div className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 transition-colors group">
-          <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-            {user?.nom?.charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-800 truncate">{user?.nom}</p>
-            <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
-          </div>
-          <button onClick={onLogout} title="Déconnexion"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+        <div className="flex items-center gap-1 rounded-xl hover:bg-slate-50 transition-colors group">
+          <NavLink to="/mon-compte" onClick={onClose} title="Mon compte"
+            className="flex items-center gap-2.5 p-2.5 rounded-xl flex-1 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+              {user?.nom?.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800 truncate">{user?.nom}</p>
+              <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
+            </div>
+          </NavLink>
+          <button onClick={onLogout} title="Déconnexion" aria-label="Déconnexion"
+            className="p-2 mr-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100">
             <LogOut size={14} />
           </button>
         </div>
@@ -187,6 +190,7 @@ function PageTitle() {
     '/previsions':      'Prévisions IA',
     '/utilisateurs':    'Utilisateurs',
     '/parametres':      'Paramètres',
+    '/mon-compte':      'Mon compte',
   };
   return (
     <h1 className="font-bold text-slate-900 text-base">
