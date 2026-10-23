@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { tracer } = require('../utils/journal');
 
 // Collections sauvegardées (nom du fichier → modèle). Tout ce qui fait vivre la boutique.
 const MODELES = () => ({
@@ -9,6 +10,7 @@ const MODELES = () => ({
   dettes:      require('../models/Dette'),
   boutique:    require('../models/Boutique'),
   utilisateurs: require('../models').User,
+  journal:     require('../models/Journal'),
 });
 
 const { EJSON } = mongoose.mongo.BSON;
@@ -49,6 +51,7 @@ exports.telecharger = async (req, res) => {
 
     const nom = `stockbtp-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
     console.log(`💾 Sauvegarde téléchargée par ${req.user.email} (${total} éléments)`);
+    tracer({ req, action: 'sauvegarde', entite: 'systeme', libelle: `Sauvegarde complète téléchargée (${total} éléments)` });
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${nom}"`);
     res.setHeader('Cache-Control', 'no-store');

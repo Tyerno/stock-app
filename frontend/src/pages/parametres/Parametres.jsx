@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Store, Palette, Download, Settings2, UserCircle,
+  Store, Palette, Download, Settings2, UserCircle, ScrollText,
   Plus, Pencil, Trash2, Save, Check,
   FileJson, FileText, AlertTriangle, Info, ImagePlus, ShieldCheck, Database
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { CHAMPS_BOUTIQUE, lireBoutiqueLocale, memoriserBoutique } from '../../ut
 import { preparerLogo } from '../../utils/logo';
 import { ContenuCompte } from '../compte/MonCompte';
 import { useAuth } from '../../context/AuthContext';
+import JournalActivite from './JournalActivite';
 import MarqueLogo, { useLogoBoutique } from '../../components/ui/MarqueLogo';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -25,6 +26,7 @@ const TABS = [
   { id:'preferences', label:'Préférences', Icon:Settings2 },
   { id:'compte',      label:'Mon compte',  Icon:UserCircle },
   { id:'export',      label:'Export & sauvegarde', Icon:Download  },
+  { id:'journal',     label:'Journal',     Icon:ScrollText, admin:true },
 ];
 
 // ─── Couleurs disponibles pour les catégories ─────────────────────────────────
@@ -581,7 +583,9 @@ function OngletExport() {
 
 // ─── Page Paramètres principale ───────────────────────────────────────────────
 export default function Parametres() {
+  const { user } = useAuth();
   const [onglet, setOnglet] = useState('boutique');
+  const onglets = TABS.filter(t => !t.admin || user?.role === 'admin');
 
   const TabContent = {
     boutique:    <OngletBoutique />,
@@ -589,6 +593,7 @@ export default function Parametres() {
     preferences: <OngletPreferences />,
     compte:      <ContenuCompte />,
     export:      <OngletExport />,
+    journal:     <JournalActivite />,
   };
 
   return (
@@ -607,7 +612,7 @@ export default function Parametres() {
         {/* Navigation — onglets horizontaux sur mobile/tablette, menu latéral sur desktop */}
         <div className="lg:w-52 flex-shrink-0">
           <div className="card-neu p-2 flex lg:flex-col gap-1 overflow-x-auto scrollbar-hide">
-            {TABS.map(t => (
+            {onglets.map(t => (
               <button key={t.id} onClick={() => setOnglet(t.id)}
                 className={`lg:w-full flex-shrink-0 flex items-center justify-center lg:justify-start gap-2 px-4 lg:px-3 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${onglet === t.id ? 'gradient-brand text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>
                 <t.Icon size={15}/>

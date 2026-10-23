@@ -18,6 +18,7 @@ const COLLECTIONS = {
   dettes:       require('../models/Dette').collection.name,
   boutique:     require('../models/Boutique').collection.name,
   utilisateurs: require('../models').User.collection.name,
+  journal:      require('../models/Journal').collection.name,
 };
 
 async function restaurer() {

@@ -92,6 +92,7 @@ app.use('/api/emails',        require('./routes/emails'));
 app.use('/api/dettes',        require('./routes/dettes'));
 app.use('/api/boutique',       require('./routes/boutique'));
 app.use('/api/sauvegarde',     require('./routes/sauvegarde'));
+app.use('/api/journal',        require('./routes/journal'));
 
 // ─── Santé ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
