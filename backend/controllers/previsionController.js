@@ -1,191 +1,140 @@
 const Mouvement = require('../models/Mouvement');
 const Produit   = require('../models/Produit');
+const {
+  analyserProduit, classerABC, construireSerie, genererInsights, HIST_MAX, JOUR, cle,
+} = require('../utils/previsionMoteur');
 
-// ─── Moteur de prévision IA ───────────────────────────────────────────────────
-// Calcule la consommation moyenne, tendance, jours avant rupture
-// et quantité optimale à commander pour chaque produit
+// ─── Calcul global (une seule requête sur les mouvements) ────────────────────
+async function calculerTout(joursDemandes, detailId = null) {
+  const jours = Math.min(180, Math.max(7, parseInt(joursDemandes, 10) || 30));
+  const hist  = Math.min(HIST_MAX, Math.max(90, jours * 2));
+  const maintenant = Date.now();
+  const finMs = maintenant - JOUR; // la journée en cours est incomplète : exclue de l'historique
+  const debut = new Date(cle(finMs - (hist - 1) * JOUR) + 'T00:00:00.000Z');
 
-async function calculerPrevision(produit, jours = 30) {
-  const debut = new Date(Date.now() - jours * 24 * 60 * 60 * 1000);
-  const debutPrecedent = new Date(Date.now() - jours * 2 * 24 * 60 * 60 * 1000);
-
-  // ─── Sorties sur la période actuelle ─────────────────────────────────────
-  const sortiesActuelles = await Mouvement.aggregate([
-    {
-      $match: {
-        produit:    produit._id,
-        type:       { $in: ['sortie', 'perte'] },
-        createdAt:  { $gte: debut },
+  const [produits, lignes] = await Promise.all([
+    Produit.find({ actif: true })
+      .populate('categorie', 'nom couleur')
+      .select('nom reference categorie unite quantiteStock quantiteMaximale seuilAlerte prixAchat prixVente fournisseur createdAt'),
+    Mouvement.aggregate([
+      { $match: { type: { $in: ['sortie', 'retour'] }, createdAt: { $gte: debut } } },
+      {
+        $group: {
+          _id: {
+            p: '$produit',
+            j: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            t: '$type',
+          },
+          q: { $sum: '$quantite' },
+        },
       },
-    },
-    { $group: { _id: null, total: { $sum: '$quantite' } } },
+    ]),
   ]);
 
-  // ─── Sorties sur la période précédente (pour calculer tendance) ───────────
-  const sortiesPrecedentes = await Mouvement.aggregate([
-    {
-      $match: {
-        produit:   produit._id,
-        type:      { $in: ['sortie', 'perte'] },
-        createdAt: { $gte: debutPrecedent, $lt: debut },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$quantite' } } },
-  ]);
-
-  // ─── Sorties par jour (pour détecter les pics) ────────────────────────────
-  const sortiesParJour = await Mouvement.aggregate([
-    {
-      $match: {
-        produit:   produit._id,
-        type:      { $in: ['sortie', 'perte'] },
-        createdAt: { $gte: debut },
-      },
-    },
-    {
-      $group: {
-        _id:      { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-        quantite: { $sum: '$quantite' },
-      },
-    },
-    { $sort: { _id: 1 } },
-  ]);
-
-  const totalActuel    = sortiesActuelles[0]?.total    || 0;
-  const totalPrecedent = sortiesPrecedentes[0]?.total  || 0;
-
-  // ─── Consommation moyenne journalière ─────────────────────────────────────
-  const consommationJournaliere = totalActuel / jours;
-
-  // ─── Tendance (% de variation entre les deux périodes) ───────────────────
-  let tendance = 0;
-  if (totalPrecedent > 0) {
-    tendance = ((totalActuel - totalPrecedent) / totalPrecedent) * 100;
+  // Demande nette par produit et par jour = sorties − retours (ventes annulées)
+  const parProduit = new Map();
+  for (const l of lignes) {
+    const id = String(l._id.p);
+    if (!parProduit.has(id)) parProduit.set(id, new Map());
+    const m = parProduit.get(id);
+    m.set(l._id.j, (m.get(l._id.j) || 0) + (l._id.t === 'sortie' ? l.q : -l.q));
   }
 
-  // ─── Consommation ajustée avec la tendance ────────────────────────────────
-  const facteurTendance  = 1 + (tendance / 100) * 0.5; // pondéré à 50%
-  const consommationAjustee = consommationJournaliere * Math.max(0.5, facteurTendance);
+  // Séries et ancienneté de chaque produit
+  const prep = produits.map((p) => {
+    const m = parProduit.get(String(p._id)) || new Map();
+    let age = p.createdAt ? Math.floor((maintenant - new Date(p.createdAt).getTime()) / JOUR) : hist;
+    for (const j of m.keys()) {
+      age = Math.max(age, Math.floor((maintenant - new Date(j + 'T00:00:00Z').getTime()) / JOUR));
+    }
+    const n = Math.max(0, Math.min(hist, age));
+    const serie = construireSerie(m, finMs, n);
+    const valeur = serie.reduce((s, x) => s + x, 0) * (Number(p.prixVente) || Number(p.prixAchat) || 0);
+    return { p, serie, age, valeur };
+  });
 
-  // ─── Jours avant rupture ──────────────────────────────────────────────────
-  let joursAvantRupture = null;
-  if (consommationAjustee > 0) {
-    joursAvantRupture = Math.floor(produit.quantiteStock / consommationAjustee);
-  }
+  const classes = classerABC(prep.map((x) => ({ id: String(x.p._id), valeur: x.valeur })));
 
-  // ─── Quantité optimale à commander ───────────────────────────────────────
-  // Stock de sécurité = 15 jours de consommation
-  // Stock cible       = 45 jours de consommation
-  const stockSecurite = Math.ceil(consommationAjustee * 15);
-  const stockCible    = Math.ceil(consommationAjustee * 45);
-  const quantiteACommander = Math.max(0, stockCible - produit.quantiteStock);
+  const previsions = prep.map((x) =>
+    analyserProduit({
+      produit: x.p,
+      serie: x.serie,
+      ageJours: x.age,
+      jours,
+      classe: classes.get(String(x.p._id)),
+      finMs,
+      avecDetail: detailId !== null && String(x.p._id) === String(detailId),
+    })
+  );
 
-  // ─── Niveau de risque ─────────────────────────────────────────────────────
-  let risque = 'faible';
-  if (joursAvantRupture !== null) {
-    if (joursAvantRupture <= 3)  risque = 'critique';
-    else if (joursAvantRupture <= 7)  risque = 'eleve';
-    else if (joursAvantRupture <= 15) risque = 'moyen';
-  }
-  if (produit.quantiteStock === 0) risque = 'rupture';
-
-  // ─── Score de fiabilité (0-100) ───────────────────────────────────────────
-  // Plus on a de données, plus la prévision est fiable
-  const nbJoursAvecDonnees = sortiesParJour.length;
-  const fiabilite = Math.min(100, Math.round((nbJoursAvecDonnees / jours) * 100));
-
-  return {
-    produitId:            produit._id,
-    nomProduit:           produit.nom,
-    reference:            produit.reference,
-    categorie:            produit.categorie,
-    unite:                produit.unite,
-    stockActuel:          produit.quantiteStock,
-    seuilAlerte:          produit.seuilAlerte,
-    consommationJournaliere: Math.round(consommationJournaliere * 100) / 100,
-    consommationAjustee:  Math.round(consommationAjustee * 100) / 100,
-    tendance:             Math.round(tendance),
-    joursAvantRupture,
-    quantiteACommander:   Math.ceil(quantiteACommander),
-    stockSecurite:        Math.ceil(stockSecurite),
-    risque,
-    fiabilite,
-    totalVendu30j:        Math.round(totalActuel),
-    fournisseur:          produit.fournisseur,
-  };
+  return { jours, finMs, hist, previsions, produits, prep };
 }
 
 // ─── Endpoint principal ───────────────────────────────────────────────────────
 exports.getPrevisions = async (req, res) => {
   try {
-    const { jours = 30 } = req.query;
+    const { jours, previsions } = await calculerTout(req.query.jours);
 
-    // Récupérer tous les produits actifs
-    const produits = await Produit.find({ actif: true })
-      .populate('categorie', 'nom couleur')
-      .select('nom reference categorie unite quantiteStock seuilAlerte prixAchat prixVente fournisseur');
-
-    // Calculer les prévisions en parallèle
-    const previsions = await Promise.all(
-      produits.map(p => calculerPrevision(p, Number(jours)))
+    const ordre = { rupture: 0, critique: 1, eleve: 2, moyen: 3, faible: 4 };
+    previsions.sort(
+      (a, b) =>
+        ordre[a.risque] - ordre[b.risque] ||
+        (a.joursAvantRupture ?? 9999) - (b.joursAvantRupture ?? 9999) ||
+        b.valeurCommande - a.valeurCommande
     );
 
-    // ─── Trier par risque ─────────────────────────────────────────────────
-    const ordre = { rupture:0, critique:1, eleve:2, moyen:3, faible:4 };
-    previsions.sort((a, b) => ordre[a.risque] - ordre[b.risque]);
+    const nb = (r) => previsions.filter((p) => p.risque === r).length;
+    const urgents = previsions.filter((p) => ['rupture', 'critique', 'eleve'].includes(p.risque) && p.quantiteACommander > 0);
+    const total = previsions.length;
+    const penal = nb('rupture') * 1 + nb('critique') * 0.8 + nb('eleve') * 0.5 + nb('moyen') * 0.2;
+    const avecData = previsions.filter((p) => p.etat !== 'nouveau');
 
-    // ─── Statistiques globales ────────────────────────────────────────────
     const stats = {
-      totalProduits:      previsions.length,
-      enRupture:          previsions.filter(p => p.risque === 'rupture').length,
-      risqueCritique:     previsions.filter(p => p.risque === 'critique').length,
-      risqueEleve:        previsions.filter(p => p.risque === 'eleve').length,
-      risqueMoyen:        previsions.filter(p => p.risque === 'moyen').length,
-      risqueFaible:       previsions.filter(p => p.risque === 'faible').length,
-      commandesUrgentes:  previsions.filter(p => ['rupture','critique','eleve'].includes(p.risque) && p.quantiteACommander > 0).length,
-      valeurCommandeEstimee: previsions.reduce((s, p) => {
-        return s + (p.quantiteACommander * (p.prixAchat || 0));
-      }, 0),
+      totalProduits: total,
+      enRupture: nb('rupture'),
+      risqueCritique: nb('critique'),
+      risqueEleve: nb('eleve'),
+      risqueMoyen: nb('moyen'),
+      risqueFaible: nb('faible'),
+      commandesUrgentes: urgents.length,
+      valeurCommandeEstimee: urgents.reduce((s, p) => s + p.valeurCommande, 0),
+      valeurCommandeTotale: previsions.reduce((s, p) => s + p.valeurCommande, 0),
+      valeurStock: previsions.reduce((s, p) => s + p.valeurStock, 0),
+      valeurDormante: previsions.filter((p) => p.etat === 'dormant').reduce((s, p) => s + p.valeurStock, 0),
+      nbDormants: previsions.filter((p) => p.etat === 'dormant').length,
+      nbSurstock: previsions.filter((p) => p.etat === 'surstock').length,
+      nbClasseA: previsions.filter((p) => p.classeABC === 'A' && p.totalVendu30j > 0).length,
+      scoreSante: total ? Math.max(0, Math.round(100 * (1 - penal / total))) : 100,
+      fiabiliteMoyenne: avecData.length ? Math.round(avecData.reduce((s, p) => s + p.fiabilite, 0) / avecData.length) : 0,
     };
 
-    res.json({ success: true, data: { previsions, stats, periode: Number(jours) } });
+    const insights = genererInsights(previsions, stats);
+    res.json({
+      success: true,
+      data: { previsions, stats, insights, periode: jours, genereLe: new Date().toISOString() },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─── Prévision pour un produit spécifique ────────────────────────────────────
+// ─── Prévision détaillée d'un produit ────────────────────────────────────────
 exports.getPrevisionProduit = async (req, res) => {
   try {
-    const produit = await Produit.findById(req.params.id)
-      .populate('categorie', 'nom couleur');
-    if (!produit) return res.status(404).json({ success: false, message: 'Produit introuvable' });
-
-    const { jours = 30 } = req.query;
-
-    // Historique détaillé des 90 derniers jours
-    const debut = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const historique = await Mouvement.aggregate([
-      { $match: { produit: produit._id, type: { $in: ['sortie','perte'] }, createdAt: { $gte: debut } } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, quantite: { $sum: '$quantite' } } },
-      { $sort: { _id: 1 } },
-    ]);
-
-    const prevision = await calculerPrevision(produit, Number(jours));
-
-    // Projections sur les 30 prochains jours
-    const projections = [];
-    let stockSimule = produit.quantiteStock;
-    for (let i = 1; i <= 30; i++) {
-      stockSimule = Math.max(0, stockSimule - prevision.consommationAjustee);
-      const date = new Date(Date.now() + i * 24 * 60 * 60 * 1000);
-      projections.push({
-        date:  date.toISOString().slice(0, 10),
-        stock: Math.round(stockSimule * 10) / 10,
-      });
+    if (!/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
+      return res.status(404).json({ success: false, message: 'Produit introuvable' });
     }
+    const { jours, finMs, previsions, prep } = await calculerTout(req.query.jours, req.params.id);
+    const prevision = previsions.find((p) => String(p.produitId) === req.params.id);
+    if (!prevision) return res.status(404).json({ success: false, message: 'Produit introuvable' });
 
-    res.json({ success: true, data: { prevision, historique, projections } });
+    const x = prep.find((e) => String(e.p._id) === req.params.id);
+    const n = x.serie.length;
+    const historique = x.serie.map((q, i) => ({ _id: cle(finMs - (n - 1 - i) * JOUR), quantite: q }));
+    const { projections } = prevision;
+    delete prevision.projections;
+
+    res.json({ success: true, data: { prevision, historique, projections, periode: jours } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
