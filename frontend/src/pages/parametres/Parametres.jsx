@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Store, Palette, Download, Settings2, UserCircle,
   Plus, Pencil, Trash2, Save, Check,
-  FileJson, FileText, AlertTriangle, Info, ImagePlus
+  FileJson, FileText, AlertTriangle, Info, ImagePlus, ShieldCheck, Database
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
@@ -11,6 +11,7 @@ import { inputCls } from '../../utils/format';
 import { CHAMPS_BOUTIQUE, lireBoutiqueLocale, memoriserBoutique } from '../../utils/boutique';
 import { preparerLogo } from '../../utils/logo';
 import { ContenuCompte } from '../compte/MonCompte';
+import { useAuth } from '../../context/AuthContext';
 import MarqueLogo, { useLogoBoutique } from '../../components/ui/MarqueLogo';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -23,7 +24,7 @@ const TABS = [
   { id:'categories',  label:'Catégories',  Icon:Palette  },
   { id:'preferences', label:'Préférences', Icon:Settings2 },
   { id:'compte',      label:'Mon compte',  Icon:UserCircle },
-  { id:'export',      label:'Export',      Icon:Download  },
+  { id:'export',      label:'Export & sauvegarde', Icon:Download  },
 ];
 
 // ─── Couleurs disponibles pour les catégories ─────────────────────────────────
@@ -405,8 +406,84 @@ function FormulairePreferences({ initial, qc }) {
   );
 }
 
+// ─── Sauvegarde complète (administrateur) ─────────────────────────────────────
+const CLE_SAUVEGARDE = 'derniere_sauvegarde';
+const NOMS_COLLECTIONS = { produits:'produits', categories:'catégories', ventes:'ventes', mouvements:'mouvements', dettes:'dettes', utilisateurs:'utilisateurs' };
+
+function lireDerniereSauvegarde() {
+  try { const v = localStorage.getItem(CLE_SAUVEGARDE); return v ? new Date(v) : null; } catch { return null; }
+}
+
+function CarteSauvegarde() {
+  const [encours, setEncours] = useState(false);
+  const [derniere, setDerniere] = useState(lireDerniereSauvegarde);
+  const { data: resume } = useQuery({
+    queryKey: ['sauvegarde-resume'],
+    queryFn: () => api.get('/sauvegarde/resume').then(r => r.data.data),
+  });
+
+  const jours = derniere ? Math.floor((Date.now() - derniere.getTime()) / 86400000) : null;
+  const ancienne = jours === null || jours >= 7;
+
+  const sauvegarder = async () => {
+    setEncours(true);
+    try {
+      const res = await api.get('/sauvegarde', { responseType: 'blob', timeout: 120000 });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = `stockbtp-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const maintenant = new Date();
+      try { localStorage.setItem(CLE_SAUVEGARDE, maintenant.toISOString()); } catch { /* stockage indisponible */ }
+      setDerniere(maintenant);
+      toast.success('Sauvegarde téléchargée. Gardez le fichier en lieu sûr.');
+    } catch { toast.error('Sauvegarde impossible pour le moment'); }
+    finally { setEncours(false); }
+  };
+
+  return (
+    <div className={`rounded-2xl border-2 p-5 ${ancienne ? 'border-amber-200 bg-amber-50/50' : 'border-emerald-200 bg-emerald-50/40'}`}>
+      <div className="flex items-start gap-3">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${ancienne ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+          <ShieldCheck size={18}/>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-slate-900">Sauvegarde complète</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Une copie de toutes vos données : produits, ventes, mouvements, dettes, comptes, réglages et logo.
+          </p>
+          <p className={`text-xs font-semibold mt-2 ${ancienne ? 'text-amber-700' : 'text-emerald-700'}`}>
+            {derniere === null
+              ? 'Aucune sauvegarde faite depuis cet appareil : faites-en une maintenant.'
+              : jours === 0 ? 'Dernière sauvegarde : aujourd\'hui.'
+              : `Dernière sauvegarde : il y a ${jours} jour${jours > 1 ? 's' : ''}${ancienne ? ' — pensez à en refaire une.' : '.'}`}
+          </p>
+          {resume && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {Object.entries(NOMS_COLLECTIONS).map(([k, label]) => (
+                <span key={k} className="text-[10px] font-semibold bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg">
+                  {new Intl.NumberFormat('fr-FR').format(resume[k] ?? 0)} {label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <button onClick={sauvegarder} disabled={encours} className="btn gradient-brand text-white hover:opacity-90 shadow-sm w-full sm:w-auto mt-4 disabled:opacity-60">
+        {encours ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/> Préparation…</> : <><Database size={15}/> Télécharger une sauvegarde</>}
+      </button>
+      <p className="text-[11px] text-slate-400 mt-3 flex items-start gap-1.5">
+        <AlertTriangle size={12} className="flex-shrink-0 mt-0.5"/>
+        <span>Ce fichier contient toutes les données de la boutique (y compris les comptes, avec mots de passe chiffrés). Ne l'envoyez à personne et gardez-le sur un support sûr (clé USB, disque personnel). Conseil : une sauvegarde par semaine.</span>
+      </p>
+    </div>
+  );
+}
+
 // ─── Onglet Export ────────────────────────────────────────────────────────────
 function OngletExport() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState({});
 
   const exporter = async (type, format) => {
@@ -467,9 +544,11 @@ function OngletExport() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="font-syne text-lg font-bold text-slate-900 mb-1">Export des données</h2>
-        <p className="text-sm text-slate-400">Téléchargez vos données en CSV ou JSON</p>
+        <h2 className="font-syne text-lg font-bold text-slate-900 mb-1">Export et sauvegarde</h2>
+        <p className="text-sm text-slate-400">Protégez vos données et téléchargez-les en CSV ou JSON</p>
       </div>
+
+      {user?.role === 'admin' && <CarteSauvegarde />}
 
       <div className="flex flex-col gap-3">
         {exports.map(e => (
