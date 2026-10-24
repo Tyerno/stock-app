@@ -7,12 +7,14 @@ import {
 import {
   Brain, TrendingUp, AlertTriangle, Package, ShoppingCart, ChevronRight,
   Zap, Clock, RefreshCw, ShieldCheck, Factory, WifiOff, Search, Sparkles, Download,
-  Moon, Layers, CheckCircle2, Info, Truck, CalendarDays, Gauge,
+  Moon, Layers, CheckCircle2, Info, Truck, CalendarDays, Gauge, FileText,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { fmt, fmtM } from '../../utils/format';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
+import { useAuth } from '../../context/AuthContext';
+import { ModalNouveauBon, ModalBon, ListeBons } from './BonsCommande';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const nb = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(n ?? 0);
@@ -344,7 +346,7 @@ function exporterCSV(lignes) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-function PlanAchats({ lignes, onOpen }) {
+function PlanAchats({ lignes, onOpen, peutEcrire, ouverts, onCreerBon }) {
   const total = lignes.reduce((s, p) => s + p.valeurCommande, 0);
   const groupes = useMemo(() => {
     const m = new Map();
@@ -371,8 +373,15 @@ function PlanAchats({ lignes, onOpen }) {
       {groupes.map(([nom, items]) => (
         <div key={nom} className="card-neu overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
-            <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><Factory size={14} className="text-indigo-500" />{nom}</p>
-            <p className="text-xs font-bold text-indigo-600">{fmt(items.reduce((s, p) => s + p.valeurCommande, 0))} GNF</p>
+            <p className="flex items-center gap-2 text-sm font-bold text-slate-800 min-w-0"><Factory size={14} className="text-indigo-500 flex-shrink-0" /><span className="truncate">{nom}</span></p>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <p className="text-xs font-bold text-indigo-600">{fmt(items.reduce((s, p) => s + p.valeurCommande, 0))} GNF</p>
+              {peutEcrire && (
+                <button type="button" onClick={() => onCreerBon(nom, items)} className="flex items-center gap-1 text-[11px] font-bold gradient-brand text-white px-2.5 py-1.5 rounded-lg shadow-sm active:scale-95">
+                  <FileText size={12} /> Créer le bon
+                </button>
+              )}
+            </div>
           </div>
           <div className="divide-y divide-slate-100">
             {items.map(p => {
@@ -386,6 +395,7 @@ function PlanAchats({ lignes, onOpen }) {
                       {p.dateCommande && p.joursAvantCommande > 0 ? `À commander avant le ${jourCourt(p.dateCommande)}` : 'À commander maintenant'}
                       {p.joursAvantRupture !== null ? ` · rupture dans ${p.joursAvantRupture} j` : ''}
                     </p>
+                    {ouverts?.get(String(p.produitId)) && <p className="text-[10px] font-semibold text-amber-600 mt-0.5">Déjà dans {ouverts.get(String(p.produitId)).join(', ')}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-indigo-600">{nb(p.quantiteACommander)} {p.unite}</p>
@@ -410,12 +420,39 @@ export default function Previsions() {
   const [vue, setVue] = useState('produits');
   const [recherche, setRecherche] = useState('');
   const [selection, setSelection] = useState(null);
+  const [nouveauBon, setNouveauBon] = useState(null);
+  const [bonCree, setBonCree] = useState(null);
+  const { user } = useAuth();
+  const peutEcrire = user?.role === 'admin' || user?.role === 'gestionnaire';
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['previsions', periode],
     queryFn: () => api.get(`/previsions?jours=${periode}`).then(r => r.data.data),
     staleTime: 5 * 60 * 1000,
   });
+
+  // Produits déjà présents dans un bon brouillon ou envoyé (pour éviter les doublons)
+  const { data: bonsOuverts } = useQuery({
+    queryKey: ['bons-commande', 'ouverts'],
+    queryFn: () => api.get('/bons-commande', { params: { statut: 'ouverts', limit: 100 } }).then(r => r.data.data),
+    staleTime: 60 * 1000,
+  });
+  const ouverts = useMemo(() => {
+    const m = new Map();
+    (bonsOuverts || []).forEach(b => b.lignes.forEach(l => {
+      const k = String(l.produit);
+      m.set(k, [...(m.get(k) || []), b.numero]);
+    }));
+    return m;
+  }, [bonsOuverts]);
+
+  const creerBon = (nom, items) => {
+    const f = items.find(p => p.fournisseur?.nom)?.fournisseur;
+    setNouveauBon({
+      fournisseur: { nom: nom === 'Fournisseur non renseigné' ? '' : nom, contact: f?.contact || '' },
+      lignes: items.map(p => ({ produit: p.produitId, nomProduit: p.nomProduit, unite: p.unite, quantite: p.quantiteACommander, prixUnitaire: p.prixAchat || 0 })),
+    });
+  };
 
   const stats = data?.stats || {};
   const liste = data?.previsions || [];
@@ -550,7 +587,7 @@ export default function Previsions() {
 
           {/* Onglets */}
           <div className="flex items-center gap-2 mb-4">
-            {[{ id: 'produits', label: 'Produits', Icon: Package }, { id: 'achats', label: `Plan d'achats (${achats.length})`, Icon: ShoppingCart }].map(t => (
+            {[{ id: 'produits', label: 'Produits', Icon: Package }, { id: 'achats', label: `Plan d'achats (${achats.length})`, Icon: ShoppingCart }, { id: 'bons', label: 'Bons de commande', Icon: FileText }].map(t => (
               <button key={t.id} onClick={() => setVue(t.id)}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${vue === t.id ? 'gradient-brand text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'}`}>
                 <t.Icon size={14} /> {t.label}
@@ -558,8 +595,10 @@ export default function Previsions() {
             ))}
           </div>
 
-          {vue === 'achats' ? (
-            <PlanAchats lignes={achats} onOpen={setSelection} />
+          {vue === 'bons' ? (
+            <ListeBons peutEcrire={peutEcrire} onVoirPlan={() => setVue('achats')} />
+          ) : vue === 'achats' ? (
+            <PlanAchats lignes={achats} onOpen={setSelection} peutEcrire={peutEcrire} ouverts={ouverts} onCreerBon={creerBon} />
           ) : (
             <>
               <div className="relative mb-3">
@@ -596,6 +635,11 @@ export default function Previsions() {
         </>
       )}
 
+      {nouveauBon && (
+        <ModalNouveauBon fournisseur={nouveauBon.fournisseur} lignes={nouveauBon.lignes} onClose={() => setNouveauBon(null)}
+          onCree={(bon) => { setNouveauBon(null); setBonCree(bon); setVue('bons'); }} />
+      )}
+      {bonCree && <ModalBon bonInitial={bonCree} peutEcrire={peutEcrire} onClose={() => setBonCree(null)} />}
       {selection && <ModalDetailProduit produitId={selection} periode={periode} onClose={() => setSelection(null)} />}
     </div>
   );

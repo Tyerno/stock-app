@@ -19,6 +19,7 @@ const COLLECTIONS = {
   boutique:     require('../models/Boutique').collection.name,
   utilisateurs: require('../models').User.collection.name,
   journal:      require('../models/Journal').collection.name,
+  bonsCommande: require('../models/BonCommande').collection.name,
 };
 
 async function restaurer() {

@@ -93,6 +93,7 @@ app.use('/api/dettes',        require('./routes/dettes'));
 app.use('/api/boutique',       require('./routes/boutique'));
 app.use('/api/sauvegarde',     require('./routes/sauvegarde'));
 app.use('/api/journal',        require('./routes/journal'));
+app.use('/api/bons-commande',  require('./routes/bonsCommande'));
 
 // ─── Santé ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

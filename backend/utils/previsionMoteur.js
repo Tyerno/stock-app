@@ -26,6 +26,7 @@ const ecartType = (a) => {
   const m = moy(a);
   return Math.sqrt(somme(a.map((x) => (x - m) ** 2)) / (a.length - 1));
 };
+const nb = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(n).replace(/\u202f|\u00a0/g, ' ');
 const arr = (x, d = 1) => {
   const p = 10 ** d;
   return Math.round(x * p) / p;
@@ -143,7 +144,7 @@ function premierJour(cum, seuil) {
   return null;
 }
 
-function analyserProduit({ produit, serie, ageJours, jours, classe, finMs, avecDetail = false }) {
+function analyserProduit({ produit, serie, ageJours, jours, classe, finMs, avecDetail = false, enCommande = 0 }) {
   const n = serie.length;
   const stock = Math.max(0, Number(produit.quantiteStock) || 0);
   const unite = produit.unite || 'unité';
@@ -201,10 +202,12 @@ function analyserProduit({ produit, serie, ageJours, jours, classe, finMs, avecD
   }
 
   let quantite = 0;
-  if (niveau > 0.0001 && (stock <= pointCommande || (joursAvantCommande !== null && joursAvantCommande <= 2))) quantite = Math.ceil(Math.max(0, cible - stock));
+  // Position de stock = stock physique + marchandise déjà commandée (bons envoyés) : évite de recommander deux fois la même chose
+  const position = stock + enCommande;
+  if (niveau > 0.0001 && (position <= pointCommande || (enCommande === 0 && joursAvantCommande !== null && joursAvantCommande <= 2))) quantite = Math.ceil(Math.max(0, cible - position));
   const seuil = Number(produit.seuilAlerte) || 0;
   const sousSeuil = seuil > 0 && stock <= seuil;
-  if (sousSeuil && quantite === 0) quantite = Math.ceil(seuil * 2 - stock);
+  if (sousSeuil && quantite === 0 && position <= seuil) quantite = Math.ceil(seuil * 2 - position);
   if (produit.quantiteMaximale > 0) quantite = Math.min(quantite, Math.max(0, Math.ceil(produit.quantiteMaximale - stock)));
 
   // Indicateurs d'état
@@ -262,7 +265,9 @@ function analyserProduit({ produit, serie, ageJours, jours, classe, finMs, avecD
   let conseil;
   if (risque === 'rupture') conseil = quantite > 0 ? `En rupture : commander ${quantite} ${unite} immédiatement.` : 'En rupture, sans demande récente : à réapprovisionner seulement si besoin.';
   else if (quantite > 0)
-    conseil = `Commander ${quantite} ${unite}${joursAvantCommande ? ` d'ici ${joursAvantCommande} j` : ' maintenant'}${jMed !== null ? ` (rupture estimée dans ${jMed} j, livraison en ${delai} j)` : ''}.`;
+    conseil = `Commander ${quantite} ${unite}${joursAvantCommande ? ` d'ici ${joursAvantCommande} j` : ' maintenant'}${jMed !== null ? ` (rupture estimée dans ${jMed} j, livraison en ${delai} j)` : ''}${enCommande > 0 ? ` — ${nb(enCommande)} ${unite} déjà en commande` : ''}.`;
+  else if (enCommande > 0 && (risque === 'critique' || risque === 'eleve' || risque === 'rupture'))
+    conseil = `${nb(enCommande)} ${unite} déjà en commande : en attente de livraison, rien à ajouter pour le moment.`;
   else if (etat === 'dormant') conseil = `Aucune vente depuis 45 jours : ne pas réapprovisionner, envisager une promotion.`;
   else if (etat === 'surstock') conseil = couverture > 365 ? `Plus d'un an de stock au rythme actuel : suspendre les achats.` : `Couverture d'environ ${Math.round(couverture)} jours : suspendre les achats.`;
   else if (etat === 'nouveau') conseil = 'Produit récent : attendre quelques jours de ventes pour une prévision fiable.';
@@ -297,6 +302,7 @@ function analyserProduit({ produit, serie, ageJours, jours, classe, finMs, avecD
     delaiEstime,
     pointCommande,
     quantiteACommander: quantite,
+    enCommande,
     stockSecurite: ss,
     stockCible: cible,
     prixAchat,

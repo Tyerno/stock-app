@@ -1,5 +1,6 @@
 const Mouvement = require('../models/Mouvement');
 const Produit   = require('../models/Produit');
+const BonCommande = require('../models/BonCommande');
 const {
   analyserProduit, classerABC, construireSerie, genererInsights, HIST_MAX, JOUR, cle,
 } = require('../utils/previsionMoteur');
@@ -12,7 +13,7 @@ async function calculerTout(joursDemandes, detailId = null) {
   const finMs = maintenant - JOUR; // la journée en cours est incomplète : exclue de l'historique
   const debut = new Date(cle(finMs - (hist - 1) * JOUR) + 'T00:00:00.000Z');
 
-  const [produits, lignes] = await Promise.all([
+  const [produits, lignes, commandes] = await Promise.all([
     Produit.find({ actif: true })
       .populate('categorie', 'nom couleur')
       .select('nom reference categorie unite quantiteStock quantiteMaximale seuilAlerte prixAchat prixVente fournisseur createdAt'),
@@ -29,7 +30,14 @@ async function calculerTout(joursDemandes, detailId = null) {
         },
       },
     ]),
+    // Marchandise déjà commandée (bons envoyés, pas encore reçus)
+    BonCommande.aggregate([
+      { $match: { statut: 'envoye' } },
+      { $unwind: '$lignes' },
+      { $group: { _id: '$lignes.produit', q: { $sum: '$lignes.quantite' } } },
+    ]),
   ]);
+  const enCommande = new Map(commandes.map((c) => [String(c._id), c.q]));
 
   // Demande nette par produit et par jour = sorties − retours (ventes annulées)
   const parProduit = new Map();
@@ -63,6 +71,7 @@ async function calculerTout(joursDemandes, detailId = null) {
       jours,
       classe: classes.get(String(x.p._id)),
       finMs,
+      enCommande: enCommande.get(String(x.p._id)) || 0,
       avecDetail: detailId !== null && String(x.p._id) === String(detailId),
     })
   );

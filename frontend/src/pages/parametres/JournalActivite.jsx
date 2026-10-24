@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   ShoppingCart, Package, Wallet, Users, KeyRound, Store, Tag, DatabaseBackup, ScrollText,
-  Search, ChevronDown, ArrowRight, WifiOff, ShieldAlert,
+  Truck, Search, ChevronDown, ArrowRight, WifiOff, ShieldAlert,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { inputCls } from '../../utils/format';
@@ -14,6 +14,7 @@ const TYPES = [
   { id: 'vente',       label: 'Ventes' },
   { id: 'produit',     label: 'Produits & stock' },
   { id: 'dette',       label: 'Dettes' },
+  { id: 'commande',    label: 'Commandes' },
   { id: 'utilisateur', label: 'Utilisateurs' },
   { id: 'compte',      label: 'Connexions' },
   { id: 'boutique',    label: 'Boutique' },
@@ -25,6 +26,7 @@ const ENTITE = {
   vente:       { Icon: ShoppingCart,   ton: 'bg-emerald-100 text-emerald-600' },
   produit:     { Icon: Package,        ton: 'bg-indigo-100 text-indigo-600' },
   dette:       { Icon: Wallet,         ton: 'bg-violet-100 text-violet-600' },
+  commande:    { Icon: Truck,          ton: 'bg-orange-100 text-orange-600' },
   utilisateur: { Icon: Users,          ton: 'bg-sky-100 text-sky-600' },
   compte:      { Icon: KeyRound,       ton: 'bg-slate-200 text-slate-600' },
   boutique:    { Icon: Store,          ton: 'bg-amber-100 text-amber-600' },
@@ -32,7 +34,7 @@ const ENTITE = {
   systeme:     { Icon: DatabaseBackup, ton: 'bg-teal-100 text-teal-600' },
 };
 // Actions sensibles mises en évidence
-const ALERTE = new Set(['vente_annulee', 'connexion_echec', 'produit_archive', 'utilisateur_mdp', 'utilisateur_toggle', 'categorie_supprimee']);
+const ALERTE = new Set(['vente_annulee', 'bon_statut', 'connexion_echec', 'produit_archive', 'utilisateur_mdp', 'utilisateur_toggle', 'categorie_supprimee']);
 
 const ROLES = { admin: 'Administrateur', gestionnaire: 'Gestionnaire', lecteur: 'Lecteur' };
 

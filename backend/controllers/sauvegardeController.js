@@ -11,6 +11,7 @@ const MODELES = () => ({
   boutique:    require('../models/Boutique'),
   utilisateurs: require('../models').User,
   journal:     require('../models/Journal'),
+  bonsCommande: require('../models/BonCommande'),
 });
 
 const { EJSON } = mongoose.mongo.BSON;
