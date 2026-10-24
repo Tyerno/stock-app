@@ -20,6 +20,7 @@ const COLLECTIONS = {
   utilisateurs: require('../models').User.collection.name,
   journal:      require('../models/Journal').collection.name,
   bonsCommande: require('../models/BonCommande').collection.name,
+  inventaires:  require('../models/Inventaire').collection.name,
 };
 
 async function restaurer() {

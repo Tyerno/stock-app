@@ -21,6 +21,7 @@ const Parametres     = lazy(() => import('./pages/parametres/Parametres'));
 const Statistiques   = lazy(() => import('./pages/statistiques/Statistiques'));
 const Previsions     = lazy(() => import('./pages/previsions/Previsions'));
 const Dettes         = lazy(() => import('./pages/dettes/Dettes'));
+const Inventaire     = lazy(() => import('./pages/inventaire/Inventaire'));
 const MonCompte      = lazy(() => import('./pages/compte/MonCompte'));
 const MotDePasseOublie         = lazy(() => import('./pages/auth/MotDePasseOublie'));
 const ReinitialiserMotDePasse  = lazy(() => import('./pages/auth/ReinitialiserMotDePasse'));
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="ventes"          element={<Ventes />} />
         <Route path="mouvements"   element={<Mouvements />} />
         <Route path="dettes"       element={<Dettes />} />
+        <Route path="inventaire"   element={<Inventaire />} />
         <Route path="alertes"      element={<Alertes />} />
         <Route path="statistiques" element={<Statistiques />} />
         <Route path="previsions"   element={<Previsions />} />

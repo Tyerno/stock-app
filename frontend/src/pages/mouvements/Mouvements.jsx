@@ -23,7 +23,7 @@ const TYPE_CFG = {
 function MouvementCard({ m }) {
   const cfg = TYPE_CFG[m.type] || TYPE_CFG.ajustement;
   const Icon = cfg.Icon;
-  const isPositif = ['entree', 'retour'].includes(m.type);
+  const isPositif = m.type === 'ajustement' ? m.quantiteApres >= m.quantiteAvant : ['entree', 'retour'].includes(m.type);
 
   return (
     <div className="card-neu p-4 flex items-start gap-3 hover:-translate-y-0.5 transition-all duration-200">
@@ -218,7 +218,7 @@ export default function Mouvements() {
             ]}>
               {mouvements.map(m => {
                 const cfg = TYPE_CFG[m.type] || TYPE_CFG.ajustement;
-                const isPositif = ['entree','retour'].includes(m.type);
+                const isPositif = m.type === 'ajustement' ? m.quantiteApres >= m.quantiteAvant : ['entree','retour'].includes(m.type);
                 return (
                   <tr key={m._id}>
                     <td>

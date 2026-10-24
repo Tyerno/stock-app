@@ -94,6 +94,7 @@ app.use('/api/boutique',       require('./routes/boutique'));
 app.use('/api/sauvegarde',     require('./routes/sauvegarde'));
 app.use('/api/journal',        require('./routes/journal'));
 app.use('/api/bons-commande',  require('./routes/bonsCommande'));
+app.use('/api/inventaires',    require('./routes/inventaires'));
 
 // ─── Santé ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
