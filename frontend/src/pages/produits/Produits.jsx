@@ -11,6 +11,8 @@ import api from '../../utils/api';
 import { fmt, inputCls } from '../../utils/format';
 import StatutBadge from '../../components/common/StatutBadge';
 import Modal from '../../components/ui/Modal';
+import ScannerCode from '../../components/ui/ScannerCode';
+import { ScanLine } from 'lucide-react';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import Table from '../../components/ui/Table';
@@ -22,6 +24,9 @@ const UNITES = ['unité','kg','tonne','m','m²','m³','litre','sac','palette','l
 function ModaleProduit({ produit, categories, onClose }) {
   const qc = useQueryClient();
   const isEdit = !!produit?._id;
+  const [scan, setScan] = useState(false);
+  // Seuil proposé pour un nouveau produit : préférence enregistrée dans Paramètres (déjà en cache via le Layout).
+  const { data: boutique } = useQuery({ queryKey: ['boutique'], queryFn: () => api.get('/boutique').then(r => r.data.data), staleTime: 5 * 60_000 });
   const [form, setForm] = useState({
     nom:            produit?.nom            || '',
     reference:      produit?.reference      || '',
@@ -31,7 +36,7 @@ function ModaleProduit({ produit, categories, onClose }) {
     prixAchat:      produit?.prixAchat      || '',
     prixVente:      produit?.prixVente      || '',
     quantiteStock:  produit?.quantiteStock  || '',
-    seuilAlerte:    produit?.seuilAlerte    || 10,
+    seuilAlerte:    produit?.seuilAlerte    ?? boutique?.seuilDefaut ?? 10,
   });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -85,7 +90,14 @@ function ModaleProduit({ produit, categories, onClose }) {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-slate-500">Référence</label>
-                <input className={inputCls} value={form.reference} onChange={e => set('reference', e.target.value.toUpperCase())} placeholder="Ex: CIM-001"/>
+                <div className="relative">
+                  <input className={inputCls + ' pr-11'} value={form.reference} onChange={e => set('reference', e.target.value.toUpperCase())} placeholder="Ex: CIM-001 ou code-barres"/>
+                  <button type="button" onClick={() => setScan(true)} aria-label="Scanner le code-barres"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
+                    <ScanLine size={15}/>
+                  </button>
+                </div>
+                {scan && <ScannerCode titre="Scanner le code-barres du produit" onCode={c => set('reference', c.toUpperCase())} onClose={() => setScan(false)} />}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-slate-500">Catégorie *</label>
@@ -322,6 +334,7 @@ export default function Produits() {
   const qc = useQueryClient();
   const [vue, setVue]               = useState('grille');
   const [search, setSearch]         = useState('');
+  const [scanRech, setScanRech]     = useState(false);
   const [catFiltre, setCatFiltre]   = useState('');
   const [statutFiltre, setStatut]   = useState('');
   const [filtresOpen, setFiltres]   = useState(false);
@@ -403,9 +416,14 @@ export default function Produits() {
           {/* Recherche */}
           <div className="relative flex-1">
             <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"/>
-            <input className="w-full bg-white border border-slate-200 text-slate-800 text-sm rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 shadow-sm"
+            <input className="w-full bg-white border border-slate-200 text-slate-800 text-sm rounded-2xl pl-10 pr-12 py-2.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 shadow-sm"
               placeholder="Rechercher un produit par nom ou référence…"
               value={search} onChange={e => setSearch(e.target.value)}/>
+            <button type="button" onClick={() => setScanRech(true)} aria-label="Scanner un code-barres"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
+              <ScanLine size={15}/>
+            </button>
+            {scanRech && <ScannerCode titre="Retrouver un produit" onCode={c => setSearch(c)} onClose={() => setScanRech(false)} />}
           </div>
 
           <div className="flex items-center gap-3">

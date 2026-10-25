@@ -11,6 +11,7 @@ import api from '../../utils/api';
 import { memoriserBoutique } from '../../utils/boutique';
 import Horloge from './Horloge';
 import MarqueLogo from '../ui/MarqueLogo';
+import BarrePWA from './BarrePWA';
 
 const navPrincipal = [
   { to: '/',           label: 'Dashboard',   Icon: LayoutDashboard, exact: true },
@@ -147,6 +148,7 @@ export default function Layout() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Topbar */}
+        <BarrePWA />
         <header className="h-14 bg-white border-b border-slate-100 flex items-center px-4 gap-3 flex-shrink-0">
           <button onClick={() => setOpen(true)} className="lg:hidden btn-icon">
             <Menu size={18} />

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { viderCachePWA } from './pwa';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -20,6 +21,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !estRouteAuthPublique) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      viderCachePWA();
       window.location.href = '/connexion';
     }
     return Promise.reject(error);

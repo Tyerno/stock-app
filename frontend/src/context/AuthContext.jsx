@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../utils/api';
+import { viderCachePWA } from '../utils/pwa';
 
 const AuthContext = createContext(null);
 
@@ -22,6 +23,7 @@ export function AuthProvider({ children }) {
   const clearSession = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    viderCachePWA();
     setUser(null);
   };
 
