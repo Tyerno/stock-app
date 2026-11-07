@@ -9,6 +9,8 @@ import { Spinner } from '../ui/LoadingState';
 import { fmt, inputCls } from '../../utils/format';
 import { lireBoutiqueLocale } from '../../utils/boutique';
 import { texteRapport, evolution, libelleMode } from '../../utils/rapportJour';
+import { envoyerRapportJour } from '../../utils/rapportsPdf';
+import { prechargerPdf } from '../../utils/recuPdf';
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
 const decaler = (j, n) => new Date(new Date(j + 'T00:00:00Z').getTime() + n * 86400000).toISOString().slice(0, 10);
@@ -27,6 +29,7 @@ export default function RapportJour() {
   const [ouvert, setOuvert] = useState(false);
   const [jour, setJour] = useState(aujourdhui());
   const [copie, setCopie] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
 
   const { data: r, isLoading, isError } = useQuery({
     queryKey: ['rapport-jour', jour],
@@ -39,11 +42,15 @@ export default function RapportJour() {
     try { await navigator.clipboard.writeText(texte); setCopie(true); setTimeout(() => setCopie(false), 2000); }
     catch { toast.error('Copie impossible'); }
   };
+  const envoyer = async () => {
+    setEnvoi(true);
+    try { await envoyerRapportJour(r); } catch { toast.error('Création du PDF impossible'); } finally { setEnvoi(false); }
+  };
   const ev = r ? evolution(r.ventes.ca, r.ventes.caVeille) : null;
 
   return (
     <>
-      <button onClick={() => setOuvert(true)}
+      <button onClick={() => { setOuvert(true); prechargerPdf(); }}
         className="flex items-center gap-2 bg-white border border-slate-100 rounded-2xl px-4 py-2 shadow-sm text-xs font-semibold text-indigo-600 hover:bg-indigo-50">
         <FileText size={14} /> Rapport du jour
       </button>
@@ -53,12 +60,11 @@ export default function RapportJour() {
         footer={
           <>
             <button className="btn btn-secondary" onClick={copier} disabled={!r}>
-              {copie ? <Check size={14} /> : <Copy size={14} />} {copie ? 'Copié' : 'Copier'}
+              {copie ? <Check size={14} /> : <Copy size={14} />} {copie ? 'Copié' : 'Copier le texte'}
             </button>
-            <a className={`btn btn-primary ${!r ? 'pointer-events-none opacity-50' : ''}`} target="_blank" rel="noreferrer"
-              href={`https://wa.me/?text=${encodeURIComponent(texte)}`}>
-              <MessageCircle size={14} /> Envoyer sur WhatsApp
-            </a>
+            <button className="btn btn-primary disabled:opacity-50" onClick={envoyer} disabled={!r || envoi}>
+              <MessageCircle size={14} /> {envoi ? 'Préparation du PDF…' : 'Envoyer en PDF'}
+            </button>
           </>
         }>
         <div className="flex items-center gap-2 mb-4">
@@ -102,7 +108,7 @@ export default function RapportJour() {
             )}
 
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Message WhatsApp</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Aperçu du résumé</p>
               <pre className="whitespace-pre-wrap text-xs text-slate-700 bg-emerald-50/60 border border-emerald-100 rounded-xl p-3 font-sans leading-relaxed">{texte}</pre>
             </div>
           </div>

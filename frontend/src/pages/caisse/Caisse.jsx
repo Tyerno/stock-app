@@ -9,6 +9,8 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { fmt, fmtDate, inputCls } from '../../utils/format';
 import { lireBoutiqueLocale } from '../../utils/boutique';
+import { envoyerCaisse } from '../../utils/rapportsPdf';
+import { prechargerPdf } from '../../utils/recuPdf';
 import { CenteredSpinner } from '../../components/ui/LoadingState';
 import EmptyState from '../../components/ui/EmptyState';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -103,6 +105,11 @@ export default function Caisse() {
   const saisi = comptees !== '' && Number.isFinite(Number(comptees));
   const ecart = saisi ? Math.round(Number(comptees) - att) : null;
   const texte = c ? texteCaisse(c, { nomBoutique: lireBoutiqueLocale().nom, fond, comptees: saisi ? comptees : undefined, note }) : '';
+  const [envoiPdf, setEnvoiPdf] = useState(false);
+  const envoyerPdf = async () => {
+    setEnvoiPdf(true);
+    try { await envoyerCaisse(c, { fond, comptees: saisi ? comptees : undefined, note }); } catch { toast.error('Création du PDF impossible'); } finally { setEnvoiPdf(false); }
+  };
   const copier = async () => {
     try { await navigator.clipboard.writeText(texte); setCopie(true); setTimeout(() => setCopie(false), 2000); } catch { toast.error('Copie impossible'); }
   };
@@ -201,8 +208,8 @@ export default function Caisse() {
             </div>
 
             <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-100">
-              <a href={`https://wa.me/?text=${encodeURIComponent(texte)}`} target="_blank" rel="noreferrer" className="btn btn-secondary"><MessageCircle size={14} /> Envoyer sur WhatsApp</a>
-              <button onClick={copier} className="btn btn-secondary">{copie ? <Check size={14} /> : <Copy size={14} />} {copie ? 'Copié' : 'Copier le résumé'}</button>
+              <button onClick={envoyerPdf} onMouseEnter={prechargerPdf} onTouchStart={prechargerPdf} disabled={envoiPdf} className="btn btn-secondary disabled:opacity-50"><MessageCircle size={14} /> {envoiPdf ? 'Préparation du PDF…' : 'Envoyer en PDF'}</button>
+              <button onClick={copier} className="btn btn-secondary">{copie ? <Check size={14} /> : <Copy size={14} />} {copie ? 'Copié' : 'Copier le texte'}</button>
             </div>
           </div>
 

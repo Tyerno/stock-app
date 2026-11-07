@@ -19,7 +19,7 @@ function dessiner(doc, ticket, logo) {
   const droite = L - M;
   const texte = (t, opts = {}) => {
     const { taille = 8.5, gras = false, couleur = 20, align = 'left', gap = 1.2 } = opts;
-    doc.setFont('helvetica', gras ? 'bold' : 'normal').setFontSize(taille).setTextColor(couleur);
+    doc.setFont('helvetica', gras ? 'bold' : 'normal').setFontSize(taille).setTextColor(...[].concat(couleur));
     const lignes = doc.splitTextToSize(net(t), W);
     for (const l of lignes) {
       y += taille * 0.3528 * 1.05;
@@ -64,7 +64,7 @@ function dessiner(doc, ticket, logo) {
   return y;
 }
 
-async function creerPdf(ticket) {
+export async function creerPdf(ticket) {
   const { jsPDF } = await import('jspdf');
   let logo = null;
   const l = lireLogoLocal();
@@ -79,13 +79,13 @@ async function creerPdf(ticket) {
   return doc.output('blob');
 }
 
-const entete = (b, titre, numero) => ({ texte, sep }) => {
+export const entete = (b, titre, numero) => ({ texte, sep }) => {
   texte(b.nom, { taille: 13, gras: true, align: 'center', gap: 0.6 });
   if (b.adresse) texte(b.adresse, { taille: 7.5, couleur: 110, align: 'center', gap: 0.3 });
   if (b.telephone) texte(`Tél : ${b.telephone}`, { taille: 7.5, couleur: 110, align: 'center', gap: 0.3 });
   sep();
   texte(titre, { taille: 10, gras: true, align: 'center', gap: 0.4 });
-  texte(`N° ${numero}`, { taille: 7.5, couleur: 110, align: 'center', gap: 1 });
+  if (numero) texte(`N° ${numero}`, { taille: 7.5, couleur: 110, align: 'center', gap: 1 });
 };
 
 // ─── Reçu de vente ────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ function telecharger(blob, nom) {
 
 // Téléphone/tablette : ouvre la fenêtre de partage avec le PDF en pièce jointe (choisir WhatsApp puis le client).
 // Ordinateur : télécharge le PDF et propose d'ouvrir WhatsApp avec le message (le PDF est à joindre).
-async function envoyerPdf({ blob, nomFichier, message, telephone }) {
+export async function envoyerPdf({ blob, nomFichier, message, telephone }) {
   const fichier = new File([blob], nomFichier, { type: 'application/pdf' });
   if (navigator.canShare?.({ files: [fichier] })) {
     try {
