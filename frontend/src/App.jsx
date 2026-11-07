@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './utils/queryClient';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -22,13 +23,12 @@ const Statistiques   = lazy(() => import('./pages/statistiques/Statistiques'));
 const Previsions     = lazy(() => import('./pages/previsions/Previsions'));
 const Dettes         = lazy(() => import('./pages/dettes/Dettes'));
 const Inventaire     = lazy(() => import('./pages/inventaire/Inventaire'));
+const Caisse         = lazy(() => import('./pages/caisse/Caisse'));
+const Clients        = lazy(() => import('./pages/clients/Clients'));
+const MiseEnRoute    = lazy(() => import('./pages/miseEnRoute/MiseEnRoute'));
 const MonCompte      = lazy(() => import('./pages/compte/MonCompte'));
 const MotDePasseOublie         = lazy(() => import('./pages/auth/MotDePasseOublie'));
 const ReinitialiserMotDePasse  = lazy(() => import('./pages/auth/ReinitialiserMotDePasse'));
-
-const qc = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
-});
 
 function PageLoader() {
   return (
@@ -69,6 +69,16 @@ function AppRoutes() {
         <Route path="mouvements"   element={<Mouvements />} />
         <Route path="dettes"       element={<Dettes />} />
         <Route path="inventaire"   element={<Inventaire />} />
+        <Route path="caisse" element={
+          <ProtectedRoute roles={['admin', 'gestionnaire']}>
+            <Caisse />
+          </ProtectedRoute>
+        } />
+        <Route path="clients" element={
+          <ProtectedRoute roles={['admin', 'gestionnaire']}>
+            <Clients />
+          </ProtectedRoute>
+        } />
         <Route path="alertes"      element={<Alertes />} />
         <Route path="statistiques" element={<Statistiques />} />
         <Route path="previsions"   element={<Previsions />} />
@@ -76,6 +86,11 @@ function AppRoutes() {
         <Route path="utilisateurs" element={
           <ProtectedRoute roles={['admin']}>
             <Utilisateurs />
+          </ProtectedRoute>
+        } />
+        <Route path="mise-en-route" element={
+          <ProtectedRoute roles={['admin']}>
+            <MiseEnRoute />
           </ProtectedRoute>
         } />
         <Route path="parametres" element={
@@ -93,7 +108,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={qc}>
+    <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
           <AppRoutes />

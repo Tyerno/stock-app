@@ -3,15 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Search, Filter, LayoutGrid, List,
   Package, ArrowDownCircle, ArrowUpCircle,
-  Pencil, Trash2, Check, ChevronDown,
+  Pencil, Trash2, Check, ChevronDown, FileSpreadsheet,
   TrendingUp, AlertTriangle, Tag, Wallet, WifiOff
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 import { fmt, inputCls } from '../../utils/format';
 import StatutBadge from '../../components/common/StatutBadge';
 import Modal from '../../components/ui/Modal';
 import ScannerCode from '../../components/ui/ScannerCode';
+import ImportProduits from './ImportProduits';
 import { ScanLine } from 'lucide-react';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
@@ -35,6 +37,7 @@ function ModaleProduit({ produit, categories, onClose }) {
     unite:          produit?.unite          || 'unité',
     prixAchat:      produit?.prixAchat      || '',
     prixVente:      produit?.prixVente      || '',
+    prixMin:        produit?.prixMin        || '',
     quantiteStock:  produit?.quantiteStock  || '',
     seuilAlerte:    produit?.seuilAlerte    ?? boutique?.seuilDefaut ?? 10,
   });
@@ -45,9 +48,10 @@ function ModaleProduit({ produit, categories, onClose }) {
     : 0;
 
   const mutation = useMutation({
-    mutationFn: (d) => isEdit
-      ? api.put(`/produits/${produit._id}`, d)
-      : api.post('/produits', d),
+    mutationFn: (d0) => {
+      const d = { ...d0, prixMin: Number(d0.prixMin) || 0 };
+      return isEdit ? api.put(`/produits/${produit._id}`, d) : api.post('/produits', d);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['produits'] });
       toast.success(isEdit ? 'Produit mis à jour ✓' : 'Produit créé ✓');
@@ -145,6 +149,14 @@ function ModaleProduit({ produit, categories, onClose }) {
                 <label className="text-xs font-semibold text-slate-500">Seuil d'alerte</label>
                 <input type="number" min="0" className={inputCls} value={form.seuilAlerte} onChange={e => set('seuilAlerte', Number(e.target.value))} placeholder="10"/>
               </div>
+            </div>
+
+            {/* Prix plancher */}
+            <div className="mt-3 flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-500">Prix plancher (GNF) <span className="font-normal text-slate-400">— optionnel</span></label>
+              <input type="number" min="0" className={inputCls + ' sm:!w-56'} value={form.prixMin} onChange={e => set('prixMin', e.target.value === '' ? '' : Number(e.target.value))} placeholder="Aucun"/>
+              <p className="text-[11px] text-slate-400">Prix minimum accepté lors d'une négociation. En dessous, le gestionnaire est bloqué ; seul l'administrateur peut vendre plus bas (et la vente est signalée dans le journal).</p>
+              {Number(form.prixMin) > Number(form.prixVente) && Number(form.prixVente) > 0 && <p className="text-[11px] text-red-500 font-semibold">Le prix plancher ne peut pas dépasser le prix de vente.</p>}
             </div>
 
             {/* Marge calculée */}
@@ -340,6 +352,8 @@ export default function Produits() {
   const [filtresOpen, setFiltres]   = useState(false);
   const [modaleForm, setModaleForm] = useState(null);
   const [modaleStock, setModaleStock] = useState(null);
+  const [importOuvert, setImportOuvert] = useState(false);
+  const { peutEcrire } = useAuth();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['produits', search, catFiltre, statutFiltre],
@@ -385,9 +399,16 @@ export default function Produits() {
             <p className="text-sm text-slate-400 mt-0.5">{stats.total} produit(s) dans le catalogue</p>
           </div>
         </div>
-        <button onClick={() => setModaleForm({})} className="btn-primary shadow-lg shadow-indigo-200 active:scale-95 w-full sm:w-auto justify-center">
-          <Plus size={15}/> Nouveau produit
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          {peutEcrire && (
+            <button onClick={() => setImportOuvert(true)} className="btn-secondary active:scale-95 flex-1 sm:flex-initial justify-center">
+              <FileSpreadsheet size={15}/> Importer
+            </button>
+          )}
+          <button onClick={() => setModaleForm({})} className="btn-primary shadow-lg shadow-indigo-200 active:scale-95 flex-1 sm:flex-initial justify-center">
+            <Plus size={15}/> Nouveau produit
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -600,6 +621,7 @@ export default function Produits() {
           onClose={() => setModaleForm(null)}
         />
       )}
+      <ImportProduits open={importOuvert} onClose={() => setImportOuvert(false)} />
       {modaleStock && (
         <ModaleStock
           produit={modaleStock.produit}

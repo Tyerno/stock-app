@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   ShoppingCart, Package, Wallet, Users, KeyRound, Store, Tag, DatabaseBackup, ScrollText,
-  Truck, ClipboardCheck, Search, ChevronDown, ArrowRight, WifiOff, ShieldAlert,
+  Truck, ClipboardCheck, Receipt, Lock, Search, ChevronDown, ArrowRight, WifiOff, ShieldAlert,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { inputCls } from '../../utils/format';
@@ -16,6 +16,9 @@ const TYPES = [
   { id: 'dette',       label: 'Dettes' },
   { id: 'commande',    label: 'Commandes' },
   { id: 'inventaire',  label: 'Inventaires' },
+  { id: 'retour',      label: 'Retours' },
+  { id: 'caisse',      label: 'Caisse' },
+  { id: 'depense',     label: 'Dépenses' },
   { id: 'utilisateur', label: 'Utilisateurs' },
   { id: 'compte',      label: 'Connexions' },
   { id: 'boutique',    label: 'Boutique' },
@@ -27,6 +30,8 @@ const ENTITE = {
   vente:       { Icon: ShoppingCart,   ton: 'bg-emerald-100 text-emerald-600' },
   produit:     { Icon: Package,        ton: 'bg-indigo-100 text-indigo-600' },
   dette:       { Icon: Wallet,         ton: 'bg-violet-100 text-violet-600' },
+  caisse:      { Icon: Lock,           ton: 'bg-sky-100 text-sky-600' },
+  depense:     { Icon: Receipt,        ton: 'bg-amber-100 text-amber-600' },
   commande:    { Icon: Truck,          ton: 'bg-orange-100 text-orange-600' },
   inventaire:  { Icon: ClipboardCheck, ton: 'bg-teal-100 text-teal-600' },
   utilisateur: { Icon: Users,          ton: 'bg-sky-100 text-sky-600' },

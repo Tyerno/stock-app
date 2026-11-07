@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { WifiOff, Download, RefreshCw, X, Share, PlusSquare } from 'lucide-react';
+import { useMarque } from '../ui/MarqueLogo';
+import { WifiOff, Download, RefreshCw, X, Share, PlusSquare, CloudUpload, AlertTriangle } from 'lucide-react';
+import { useSynchro } from '../../utils/synchro';
+import ModaleFileAttente from '../common/ModaleFileAttente';
 
 const CLE = 'pwa-install-masque';
 const DELAI = 14 * 24 * 3600 * 1000;
@@ -13,6 +16,9 @@ const estIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
 
 export default function BarrePWA() {
+  const { nom } = useMarque();
+  const synchro = useSynchro();
+  const [fileOuverte, setFileOuverte] = useState(false);
   const [horsLigne, setHorsLigne] = useState(!navigator.onLine);
   const [invite, setInvite] = useState(null);      // événement beforeinstallprompt
   const [aideIOS, setAideIOS] = useState(false);
@@ -54,13 +60,24 @@ export default function BarrePWA() {
       {horsLigne && (
         <div role="status" className="flex items-center justify-center gap-2 bg-amber-500 text-white text-xs font-semibold px-3 py-1.5">
           <WifiOff size={14} />
-          Pas de connexion — consultation seulement (dernières données connues)
+          Pas de connexion — la caisse reste utilisable, le reste est en lecture seule
         </div>
       )}
+      {(synchro.enAttente > 0 || synchro.refusees > 0) && (
+        <button type="button" onClick={() => setFileOuverte(true)} role="status"
+          className={`w-full flex items-center justify-center gap-2 text-white text-xs font-semibold px-3 py-1.5 ${synchro.refusees > 0 ? 'bg-red-500' : 'bg-slate-800'}`}>
+          {synchro.refusees > 0 ? <AlertTriangle size={14} /> : <CloudUpload size={14} className={synchro.envoi ? 'animate-pulse' : ''} />}
+          {synchro.enAttente > 0 && `${synchro.enAttente} vente${synchro.enAttente > 1 ? 's' : ''} en attente d'envoi`}
+          {synchro.enAttente > 0 && synchro.refusees > 0 && ' · '}
+          {synchro.refusees > 0 && `${synchro.refusees} à vérifier`}
+          <span className="underline underline-offset-2">Voir</span>
+        </button>
+      )}
+      {fileOuverte && <ModaleFileAttente onClose={() => setFileOuverte(false)} onRelancer={synchro.lancer} envoi={synchro.envoi} />}
       {maj && (
         <div role="status" className="flex items-center justify-center gap-3 bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5">
           <RefreshCw size={14} />
-          Une nouvelle version de StockBTP est disponible
+          Une nouvelle version de l'application est disponible
           <button onClick={() => window.__appliquerMaj?.()} className="bg-white/20 hover:bg-white/30 rounded-md px-2 py-0.5">
             Actualiser
           </button>
@@ -72,7 +89,7 @@ export default function BarrePWA() {
             <Download size={16} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold leading-tight">Installer StockBTP sur cet appareil</p>
+            <p className="font-semibold leading-tight">Installer {nom} sur cet appareil</p>
             {aideIOS ? (
               <p className="text-xs text-slate-500 flex flex-wrap items-center gap-1">
                 Touchez <Share size={12} /> Partager puis <PlusSquare size={12} /> « Sur l'écran d'accueil »

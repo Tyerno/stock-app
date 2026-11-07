@@ -21,6 +21,9 @@ const COLLECTIONS = {
   journal:      require('../models/Journal').collection.name,
   bonsCommande: require('../models/BonCommande').collection.name,
   inventaires:  require('../models/Inventaire').collection.name,
+  depenses:     require('../models/Depense').collection.name,
+  clotures:     require('../models/Cloture').collection.name,
+  retours:      require('../models/Retour').collection.name,
 };
 
 async function restaurer() {

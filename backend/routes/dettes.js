@@ -2,6 +2,8 @@ const router = require('express').Router();
 const ctrl   = require('../controllers/detteController');
 const { proteger, autoriser } = require('../middleware/auth');
 const { journaliser, GNF } = require('../utils/journal');
+const idempotence = require('../middleware/idempotence');
+const Dette = require('../models/Dette');
 const nomClient = (d) => d?.client?.nom || d?.client || 'client';
 
 router.use(proteger);
@@ -10,6 +12,7 @@ router.get('/',              ctrl.getDettes);
 router.get('/resume',        ctrl.getResume); // doit rester AVANT '/:id'
 router.get('/:id',           ctrl.getDette);
 router.post('/',             autoriser('admin','gestionnaire'),
+  idempotence('dette', Dette),
   journaliser({ action:'dette_creee', entite:'dette', decrire:({ body }) => ({ entiteId: body.data?._id,
     libelle: `Dette enregistrée : ${GNF(body.data?.montantInitial)} — ${nomClient(body.data)}` }) }),
   ctrl.creerDette);

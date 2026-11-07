@@ -30,8 +30,12 @@ exports.getProduit = async (req, res) => {
   } catch (err) { res.status(500).json({ success:false, message:err.message }); }
 };
 
+// Le prix plancher ne peut pas dépasser le prix de vente affiché.
+const plancherValide = (prixMin, prixVente) => !(Number(prixMin) > 0 && Number(prixVente) >= 0 && Number(prixMin) > Number(prixVente));
+
 exports.creerProduit = async (req, res) => {
   try {
+    if (!plancherValide(req.body.prixMin, req.body.prixVente)) return res.status(400).json({ success:false, message:'Le prix plancher ne peut pas dépasser le prix de vente' });
     const produit = await Produit.create({ ...req.body, creePar:req.user._id });
     await produit.populate('categorie','nom couleur');
     if (req.body.quantiteStock > 0) {
@@ -47,6 +51,13 @@ exports.creerProduit = async (req, res) => {
 exports.modifierProduit = async (req, res) => {
   try {
     const { quantiteStock, ...modifications } = req.body;
+    if ('prixMin' in modifications || 'prixVente' in modifications) {
+      const actuel = await Produit.findById(req.params.id).select('prixMin prixVente').lean();
+      if (!actuel) return res.status(404).json({ success:false, message:'Produit introuvable' });
+      const min = 'prixMin' in modifications ? modifications.prixMin : actuel.prixMin;
+      const vente = 'prixVente' in modifications ? modifications.prixVente : actuel.prixVente;
+      if (!plancherValide(min, vente)) return res.status(400).json({ success:false, message:'Le prix plancher ne peut pas dépasser le prix de vente' });
+    }
     const produit = await Produit.findByIdAndUpdate(req.params.id, modifications, { new:true, runValidators:true }).populate('categorie','nom couleur');
     if (!produit) return res.status(404).json({ success:false, message:'Produit introuvable' });
     res.json({ success:true, data:produit, message:'Produit mis à jour' });

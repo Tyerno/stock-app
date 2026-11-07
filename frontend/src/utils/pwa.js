@@ -1,3 +1,5 @@
+import { viderCatalogueLocal } from './horsLigne';
+
 // Utilitaires PWA : enregistrement du service worker, mise à jour, nettoyage à la déconnexion.
 
 export function viderCachePWA() {
@@ -5,6 +7,7 @@ export function viderCachePWA() {
     navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_API' });
     if (window.caches) caches.keys().then((ks) => ks.filter((k) => k.startsWith('stockbtp-api')).forEach((k) => caches.delete(k)));
   } catch { /* sans effet */ }
+  viderCatalogueLocal(); // copie des produits : retirée à la déconnexion (les ventes en attente, elles, sont conservées)
 }
 
 // onUpdate(appliquer) est appelé quand une nouvelle version est prête.

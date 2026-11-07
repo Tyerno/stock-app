@@ -72,6 +72,8 @@ app.use('/api/auth/mot-de-passe', limiterMdp);
 // ─── Middleware ───────────────────────────────────────────────────────────────
 // Le logo de la boutique (image réduite en base64) dépasse 10 Ko : limite relevée pour cette seule route.
 app.use('/api/boutique', express.json({ limit: '200kb' }));
+// Import de produits : corps plus gros (jusqu'à 2000 lignes). Les routes exigent une authentification.
+app.use('/api/produits/import', express.json({ limit: '2mb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(mongoSanitize());
@@ -95,10 +97,19 @@ app.use('/api/sauvegarde',     require('./routes/sauvegarde'));
 app.use('/api/journal',        require('./routes/journal'));
 app.use('/api/bons-commande',  require('./routes/bonsCommande'));
 app.use('/api/inventaires',    require('./routes/inventaires'));
+app.use('/api/rapport',        require('./routes/rapport'));
+app.use('/api/caisse',         require('./routes/caisse'));
+app.use('/api/clients',        require('./routes/clients'));
+app.use('/api/retours',        require('./routes/retours'));
+app.use('/api/mise-en-route',  require('./routes/miseEnRoute'));
 
 // ─── Santé ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
+  // 200 même si la base est indisponible : le ping sert aussi à réveiller le serveur (Render gratuit).
+  const etats = ['deconnecte', 'connecte', 'connexion', 'deconnexion'];
+  let base = 'inconnu';
+  try { base = etats[require('mongoose').connection.readyState] || 'inconnu'; } catch { /* ignoré */ }
+  res.json({ status: 'ok', base, timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
 });
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────

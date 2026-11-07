@@ -4,6 +4,7 @@ const PaiementSchema = new mongoose.Schema({
   montant: { type: Number, required: true, min: 0.01 },
   date:    { type: Date, default: Date.now },
   note:    { type: String, trim: true },
+  avoir:   { type: Boolean, default: false }, // vrai = dette réduite par un retour de marchandise (aucun argent encaissé)
 }, { _id: false });
 
 const DetteSchema = new mongoose.Schema({

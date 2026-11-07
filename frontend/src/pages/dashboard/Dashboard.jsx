@@ -4,11 +4,14 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import {
   Package, TrendingDown, AlertTriangle, Banknote,
   ArrowDownCircle, ArrowUpCircle, ShoppingCart, Activity,
-  Eye, Zap, ChevronRight, WifiOff, HandCoins, Wallet
+  Eye, Zap, ChevronRight, WifiOff, HandCoins, Wallet, Rocket, ArrowRight
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import RapportJour from '../../components/common/RapportJour';
+import ActiviteCommerciale from '../../components/common/ActiviteCommerciale';
+import { useMiseEnRoute } from '../../utils/miseEnRoute';
 import KpiCard, { AnimatedBar } from '../../components/common/KpiCard';
 import Table from '../../components/ui/Table';
 import EmptyState from '../../components/ui/EmptyState';
@@ -85,6 +88,24 @@ function BandeauRetard({ resume }) {
 // ════════════════════════════════════════════════════════════════════════════
 // DASHBOARD ADMIN
 // ════════════════════════════════════════════════════════════════════════════
+// Bandeau d'accueil tant que la mise en service n'est pas terminée
+function BandeauMiseEnRoute() {
+  const { etapes, faites, total, termine } = useMiseEnRoute();
+  if (!etapes.length || termine) return null;
+  const prochaine = etapes.find((e) => !e.ok);
+  return (
+    <Link to="/mise-en-route" className="mb-6 flex items-center gap-4 rounded-2xl bg-white border border-indigo-100 p-4 shadow-sm hover:shadow-md transition-shadow">
+      <div className="w-11 h-11 rounded-xl gradient-brand flex items-center justify-center flex-shrink-0"><Rocket size={20} className="text-white" /></div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-slate-900">Mise en route : {faites}/{total} étapes</p>
+        <p className="text-xs text-slate-400 truncate">Prochaine étape : {prochaine?.titre}</p>
+        <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div className="h-full gradient-brand" style={{ width: `${Math.round((faites / total) * 100)}%` }} /></div>
+      </div>
+      <ArrowRight size={16} className="text-slate-300 flex-shrink-0" />
+    </Link>
+  );
+}
+
 function DashboardAdmin({ data, user, resume }) {
   const { kpis, graphe30Jours, topProduits, derniersMouvements, alertes } = data;
 
@@ -109,6 +130,8 @@ function DashboardAdmin({ data, user, resume }) {
   return (
     <div className="min-h-screen bg-slate-100 p-5 lg:p-7">
 
+      <BandeauMiseEnRoute />
+
       {/* Header animé */}
       <div className="flex items-center justify-between mb-7 animate-fade-up">
         <div>
@@ -124,14 +147,19 @@ function DashboardAdmin({ data, user, resume }) {
             {new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
           </p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <RapportJour />
         <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-2xl px-4 py-2 shadow-sm">
           <div className="w-2 h-2 rounded-full bg-emerald-400 dot-live" />
           <span className="text-xs font-medium text-slate-500">Données en direct</span>
           <Activity size={13} className="text-emerald-400" />
         </div>
+        </div>
       </div>
 
       <BandeauRetard resume={resume} />
+
+      <ActiviteCommerciale />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
@@ -384,7 +412,8 @@ function DashboardGestionnaire({ data, user, resume }) {
 
   return (
     <div className="min-h-screen bg-slate-100 p-5 lg:p-7">
-      <div className="mb-7 animate-fade-up">
+      <div className="mb-7 animate-fade-up flex items-start justify-between gap-3">
+       <div>
         <div className="flex items-center gap-2 mb-1">
           <div className="w-7 h-7 rounded-lg gradient-brand flex items-center justify-center">
             <Zap size={13} className="text-white"/>
@@ -394,6 +423,8 @@ function DashboardGestionnaire({ data, user, resume }) {
           </h1>
         </div>
         <p className="text-sm text-slate-400 ml-9">{new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}</p>
+       </div>
+       <RapportJour />
       </div>
 
       <BandeauRetard resume={resume} />

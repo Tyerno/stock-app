@@ -8,6 +8,7 @@ const ProduitSchema = new mongoose.Schema({
   unite: { type: String, enum: ['unité','kg','tonne','m','m²','m³','litre','sac','palette','lot'], default: 'unité' },
   prixAchat: { type: Number, required: true, min: 0 },
   prixVente: { type: Number, required: true, min: 0 },
+  prixMin: { type: Number, default: 0, min: 0 }, // prix plancher : en dessous, seul l'administrateur peut vendre (0 = pas de plancher)
   quantiteStock: { type: Number, default: 0, min: 0 },
   seuilAlerte: { type: Number, default: 10, min: 0 },
   quantiteMaximale: { type: Number, min: 0 },

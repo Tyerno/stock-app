@@ -410,7 +410,7 @@ function FormulairePreferences({ initial, qc }) {
 
 // ─── Sauvegarde complète (administrateur) ─────────────────────────────────────
 const CLE_SAUVEGARDE = 'derniere_sauvegarde';
-const NOMS_COLLECTIONS = { produits:'produits', categories:'catégories', ventes:'ventes', mouvements:'mouvements', dettes:'dettes', utilisateurs:'utilisateurs' };
+const NOMS_COLLECTIONS = { produits:'produits', categories:'catégories', ventes:'ventes', mouvements:'mouvements', dettes:'dettes', depenses:'dépenses', retours:'retours', clotures:'clôtures', utilisateurs:'utilisateurs' };
 
 function lireDerniereSauvegarde() {
   try { const v = localStorage.getItem(CLE_SAUVEGARDE); return v ? new Date(v) : null; } catch { return null; }
@@ -483,6 +483,77 @@ function CarteSauvegarde() {
   );
 }
 
+// ─── Remise à zéro (mise en service) ──────────────────────────────────────────
+function CarteRemiseAZero() {
+  const qc = useQueryClient();
+  const [ouvert, setOuvert] = useState(false);
+  const [phrase, setPhrase] = useState('');
+  const [mdp, setMdp] = useState('');
+  const [boutique, setBoutique] = useState(true);
+  const [encours, setEncours] = useState(false);
+  const pret = phrase === 'REMETTRE A ZERO' && mdp.length > 0;
+
+  const fermer = () => { if (encours) return; setOuvert(false); setPhrase(''); setMdp(''); };
+  const lancer = async () => {
+    setEncours(true);
+    try {
+      await api.post('/sauvegarde/remise-a-zero', { confirmation: phrase, motDePasse: mdp, boutique });
+      if (boutique) {
+        try { Object.keys(localStorage).filter(k => k.startsWith('boutique_')).forEach(k => localStorage.removeItem(k)); } catch { /* ignoré */ }
+      }
+      qc.clear();
+      toast.success('Données remises à zéro. Vous pouvez commencer.');
+      setOuvert(false); setPhrase(''); setMdp('');
+      setTimeout(() => window.location.assign('/'), 800);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Remise à zéro impossible');
+    } finally { setEncours(false); }
+  };
+
+  return (
+    <div className="rounded-2xl border-2 border-red-200 bg-red-50/40 p-5">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0"><Trash2 size={18}/></div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-slate-900">Remise à zéro</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Efface produits, catégories, ventes, mouvements, dettes, bons de commande, inventaires et journal, pour démarrer avec les vraies données de la boutique. Les comptes utilisateurs sont conservés. Action irréversible : téléchargez d'abord une sauvegarde.
+          </p>
+          <button onClick={() => setOuvert(true)} className="btn btn-sm mt-3 bg-red-600 text-white hover:bg-red-700">
+            <Trash2 size={14}/> Remettre à zéro…
+          </button>
+        </div>
+      </div>
+
+      <Modal open={ouvert} onClose={fermer} icon={AlertTriangle} title="Remettre l'application à zéro" subtitle="Cette action est définitive"
+        footer={<>
+          <button className="btn btn-secondary" onClick={fermer} disabled={encours}>Annuler</button>
+          <button className="btn bg-red-600 text-white hover:bg-red-700 disabled:opacity-40" disabled={!pret || encours} onClick={lancer}>
+            {encours ? 'Suppression…' : 'Tout effacer'}
+          </button>
+        </>}>
+        <div className="space-y-4 text-sm">
+          <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-red-700 text-xs">
+            Tous les produits, ventes, dettes et historiques seront supprimés. Si ce n'est pas déjà fait, fermez cette fenêtre et téléchargez une sauvegarde complète.
+          </div>
+          <label className="flex items-start gap-2 text-slate-600">
+            <input type="checkbox" className="mt-1" checked={boutique} onChange={e => setBoutique(e.target.checked)} />
+            <span>Effacer aussi le nom, le logo et les coordonnées de la boutique (à saisir de nouveau ensuite)</span>
+          </label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-500">Votre mot de passe</label>
+            <input type="password" className={inputCls} value={mdp} onChange={e => setMdp(e.target.value)} autoComplete="current-password" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-500">Tapez <span className="font-mono text-red-600">REMETTRE A ZERO</span> pour confirmer</label>
+            <input className={inputCls} value={phrase} onChange={e => setPhrase(e.target.value)} autoComplete="off" />
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 // ─── Onglet Export ────────────────────────────────────────────────────────────
 function OngletExport() {
   const { user } = useAuth();
@@ -551,6 +622,7 @@ function OngletExport() {
       </div>
 
       {user?.role === 'admin' && <CarteSauvegarde />}
+      {user?.role === 'admin' && <CarteRemiseAZero />}
 
       <div className="flex flex-col gap-3">
         {exports.map(e => (

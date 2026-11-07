@@ -11,7 +11,13 @@ import api from '../../utils/api';
 import { fmt, fmtDate, inputCls } from '../../utils/format';
 import Modal from '../../components/ui/Modal';
 import ScannerCode from '../../components/ui/ScannerCode';
-import { ScanLine } from 'lucide-react';
+import { envoyerRecuVente, prechargerPdf } from '../../utils/recuPdf';
+import { ScanLine, Send, Undo2 } from 'lucide-react';
+import { useClientsConnus, telephoneConnu } from '../../utils/clients';
+import { ajouterVente, ajusterCatalogue, sauverCatalogue, lireCatalogue, filtrerCatalogue, categoriesDuCatalogue, useEnLigne, cleVente } from '../../utils/horsLigne';
+import ModaleRetour from '../../components/common/ModaleRetour';
+import { useAuth } from '../../context/AuthContext';
+import ListeClients, { ID_LISTE_CLIENTS } from '../../components/common/ListeClients';
 import { logoRecuHtml, echapperHtml as esc } from '../../utils/boutique';
 import Table from '../../components/ui/Table';
 import EmptyState from '../../components/ui/EmptyState';
@@ -20,7 +26,7 @@ import { Spinner } from '../../components/ui/LoadingState';
 // ─── Impression reçu ──────────────────────────────────────────────────────────
 function imprimerRecu(vente) {
   const modeLabel   = { especes:'Espèces', mobile_money:'Mobile Money', mixte:'Mixte' };
-  const nomBoutique = localStorage.getItem('boutique_nom')       || 'StockBTP';
+  const nomBoutique = localStorage.getItem('boutique_nom')       || 'Ma boutique';
   const adresse     = localStorage.getItem('boutique_adresse')   || 'Conakry, Guinée';
   const telephone   = localStorage.getItem('boutique_telephone') || '';
   const logoHtml    = logoRecuHtml();
@@ -83,12 +89,19 @@ function imprimerRecu(vente) {
 // ─── Modal succès ─────────────────────────────────────────────────────────────
 function SuccessModal({ vente, onClose, onPrint, onCreerDette, detteAuto }) {
   const resteAPayer = Math.max(0, vente.totalNet - (vente.montantRecu || 0));
+  const [envoi, setEnvoi] = useState(false);
+  useEffect(() => { prechargerPdf(); }, []);
+  const envoyer = async () => {
+    setEnvoi(true);
+    try { await envoyerRecuVente(vente); } catch { toast.error('Création du PDF impossible'); } finally { setEnvoi(false); }
+  };
 
   useEffect(() => {
     if (resteAPayer > 0) return; // pas de fermeture auto tant qu'il reste un solde à traiter
-    const t = setTimeout(onClose, 8000);
+    if (envoi) return;
+    const t = setTimeout(onClose, 20000);
     return () => clearTimeout(t);
-  }, [onClose, resteAPayer]);
+  }, [onClose, resteAPayer, envoi]);
 
   return (
     <Modal open onClose={onClose} size="sm" hideHeader>
@@ -104,7 +117,7 @@ function SuccessModal({ vente, onClose, onPrint, onCreerDette, detteAuto }) {
               <CheckCircle size={40} className="text-white"/>
             </div>
             <h2 className="font-syne text-2xl font-bold text-white">Vente enregistrée !</h2>
-            <p className="text-green-100 text-sm font-mono mt-1">{vente.numero}</p>
+            <p className="text-green-100 text-sm font-mono mt-1">{vente.horsLigne ? 'Reçu provisoire' : vente.numero}</p>
           </div>
         </div>
 
@@ -125,6 +138,16 @@ function SuccessModal({ vente, onClose, onPrint, onCreerDette, detteAuto }) {
             ))}
           </div>
 
+          {vente.horsLigne && (
+            <p className="text-center text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-2xl px-3 py-2.5 mb-3">
+              Enregistrée sur cet appareil. Elle sera envoyée au serveur dès que le réseau revient (le numéro définitif sera attribué à ce moment).
+            </p>
+          )}
+          {resteAPayer > 0 && detteAuto === 'attente' && (
+            <p className="text-center text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-100 rounded-2xl px-3 py-2.5 mb-3">
+              <HandCoins size={13} className="inline mr-1"/> Dette de {fmt(resteAPayer)} GNF enregistrée avec la vente pour {vente.client?.nom}
+            </p>
+          )}
           {resteAPayer > 0 && detteAuto === 'encours' && (
             <div className="flex items-center justify-center gap-2 py-3 mb-3 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 text-sm font-semibold">
               <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"/> Enregistrement de la dette…
@@ -138,7 +161,7 @@ function SuccessModal({ vente, onClose, onPrint, onCreerDette, detteAuto }) {
           {resteAPayer > 0 && detteAuto === 'erreur' && (
             <p className="text-center text-[11px] text-red-500 mb-2">La dette n'a pas pu être enregistrée automatiquement. Réessayez avec le bouton ci-dessous.</p>
           )}
-          {resteAPayer > 0 && vente.client?.nom && detteAuto !== 'ok' && detteAuto !== 'encours' && (
+          {resteAPayer > 0 && vente.client?.nom && detteAuto !== 'ok' && detteAuto !== 'encours' && detteAuto !== 'attente' && !vente.horsLigne && (
             <button onClick={() => onCreerDette(vente)}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition-all shadow-md shadow-red-200 active:scale-95 mb-3">
               <HandCoins size={15}/> Créer une dette pour {fmt(resteAPayer)} GNF
@@ -151,6 +174,10 @@ function SuccessModal({ vente, onClose, onPrint, onCreerDette, detteAuto }) {
             </p>
           )}
 
+          <button onClick={envoyer} disabled={envoi}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-all shadow-md shadow-emerald-200 active:scale-95 mb-3 disabled:opacity-60">
+            <Send size={15}/> {envoi ? 'Préparation du PDF…' : 'Envoyer le reçu en PDF'}
+          </button>
           <div className="flex gap-3">
             <button onClick={() => { onPrint(vente); onClose(); }}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-700 transition-all active:scale-95">
@@ -162,7 +189,7 @@ function SuccessModal({ vente, onClose, onPrint, onCreerDette, detteAuto }) {
             </button>
           </div>
           {resteAPayer === 0 && (
-            <p className="text-center text-[10px] text-slate-400 mt-3">Fermeture automatique dans 8 secondes</p>
+            <p className="text-center text-[10px] text-slate-400 mt-3">Fermeture automatique dans 20 secondes</p>
           )}
         </div>
       </div>
@@ -244,13 +271,22 @@ function ProduitCard({ produit, onAjouter, quantitePanier }) {
 }
 
 // ─── Ligne panier ─────────────────────────────────────────────────────────────
-function LignePanier({ ligne, onUpdate, onRemove }) {
+function LignePanier({ ligne, onUpdate, onRemove, ratio = 1 }) {
+  const negocie = ligne.prixCatalogue != null && ligne.prixUnitaire !== ligne.prixCatalogue;
+  const bas = ligne.prixMin > 0 && Math.round(ligne.prixUnitaire * ratio) < ligne.prixMin;
   return (
     <div className="flex items-center gap-3 py-3 border-b border-slate-100 last:border-0 group animate-fade-up">
       {/* Nom + prix */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-800 truncate">{ligne.nomProduit}</p>
-        <p className="text-xs text-slate-400 mt-0.5">{fmt(ligne.prixUnitaire)} GNF / {ligne.unite}</p>
+        <div className="flex items-center gap-1 mt-0.5">
+          <input type="number" min="0" inputMode="numeric" aria-label={`Prix ${ligne.nomProduit}`} value={ligne.prixUnitaire}
+            onChange={e => onUpdate(ligne.produitId, 'prixUnitaire', e.target.value === '' ? 0 : Number(e.target.value))}
+            className={`w-24 text-xs rounded-md border px-1.5 py-0.5 outline-none focus:border-indigo-400 ${bas ? 'border-red-300 bg-red-50 text-red-600 font-semibold' : negocie ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-transparent bg-transparent text-slate-400 hover:border-slate-200'}`}/>
+          <span className="text-xs text-slate-400">GNF / {ligne.unite}</span>
+        </div>
+        {negocie && !bas && <p className="text-[10px] text-amber-600">Prix négocié (catalogue : {fmt(ligne.prixCatalogue)})</p>}
+        {bas && <p className="text-[10px] text-red-500 font-semibold">Sous le prix plancher ({fmt(ligne.prixMin)})</p>}
       </div>
 
       {/* Contrôle quantité */}
@@ -344,7 +380,10 @@ function ModaleCreerDette({ vente, onClose }) {
 
 function HistoriqueVentes() {
   const [recuVente, setRecuVente] = useState(null);
+  useEffect(() => { if (recuVente) prechargerPdf(); }, [recuVente]);
   const [venteADette, setVenteADette] = useState(null);
+  const [venteRetour, setVenteRetour] = useState(null);
+  const { peutEcrire } = useAuth();
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin]     = useState('');
 
@@ -433,6 +472,12 @@ function HistoriqueVentes() {
                       <HandCoins size={13}/> Dette
                     </button>
                   )}
+                  {peutEcrire && v.statut === 'validee' && (
+                    <button onClick={() => setVenteRetour(v)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 active:scale-95 transition-all">
+                      <Undo2 size={13}/> Retour
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -469,6 +514,12 @@ function HistoriqueVentes() {
                             <HandCoins size={11}/> Dette
                           </button>
                         )}
+                        {peutEcrire && v.statut === 'validee' && (
+                          <button onClick={() => setVenteRetour(v)} title="Retour ou échange"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all whitespace-nowrap">
+                            <Undo2 size={11}/> Retour
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -477,6 +528,8 @@ function HistoriqueVentes() {
           </div>
         </>
       )}
+
+      {venteRetour && <ModaleRetour vente={venteRetour} onClose={() => setVenteRetour(null)} />}
 
       {/* Modal aperçu reçu */}
       {recuVente && (
@@ -491,6 +544,10 @@ function HistoriqueVentes() {
               <button onClick={() => { imprimerRecu(recuVente); setRecuVente(null); }}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl gradient-brand text-white font-semibold text-sm active:scale-95">
                 <Printer size={14}/> Imprimer
+              </button>
+              <button onClick={() => envoyerRecuVente(recuVente).catch(() => toast.error('Création du PDF impossible'))}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 text-white font-semibold text-sm active:scale-95">
+                <Send size={14}/> PDF
               </button>
               <button onClick={() => setRecuVente(null)}
                 className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-semibold text-sm hover:bg-slate-200 transition-all">
@@ -517,6 +574,9 @@ export default function Ventes() {
   const [catFiltre, setCatFiltre]       = useState('');
   const [panier, setPanier]             = useState([]);
   const [client, setClient]             = useState({ nom:'', telephone:'' });
+  const clientsConnus = useClientsConnus();
+  // Choisir un client déjà connu pré-remplit son téléphone (sans écraser un numéro déjà saisi)
+  const changerNomClient = (nom) => setClient(c => ({ ...c, nom, telephone: c.telephone || telephoneConnu(clientsConnus, nom) }));
   const [modePaiement, setMode]         = useState('especes');
   const [montantRecu, setMontantRecu]   = useState('');
   const [remise, setRemise]             = useState('');
@@ -527,20 +587,48 @@ export default function Ventes() {
   const [panierOuvert, setPanierOuvert] = useState(false); // mobile
   const [scanOuvert, setScanOuvert]     = useState(false);
 
-  const { data: produitsData, isError: produitsIsError } = useQuery({
+  const { data: produitsEnLigne, isError: produitsIsError } = useQuery({
     queryKey: ['produits-vente', search, catFiltre],
     queryFn:  () => api.get('/produits', {
       params: { search, categorie:catFiltre||undefined, limit:100 }
     }).then(r => r.data.data),
   });
 
-  const { data: categories } = useQuery({
+  const { data: categoriesEnLigne, isError: categoriesIsError } = useQuery({
     queryKey: ['categories'],
     queryFn:  () => api.get('/categories').then(r => r.data.data),
   });
 
+  // ── Vente hors connexion : copie locale des produits, tenue à jour tant qu'on a du réseau ──
+  const enLigne = useEnLigne();
+  const { user } = useAuth();
+  const [catalogue, setCatalogue] = useState(null);
+  const chargerCatalogue = () => lireCatalogue().then(c => setCatalogue(c?.produits || null)).catch(() => {});
+  useEffect(() => {
+    chargerCatalogue();
+    window.addEventListener('catalogue-maj', chargerCatalogue);
+    return () => window.removeEventListener('catalogue-maj', chargerCatalogue);
+  }, []);
+  useQuery({
+    queryKey: ['catalogue-hors-ligne'],
+    queryFn: async () => {
+      const r = await api.get('/produits', { params: { limit: 2000 } });
+      await sauverCatalogue(r.data.data).catch(() => {});
+      return r.data.data.length;
+    },
+    staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: false,
+  });
+  const modeLocal = (!enLigne || produitsIsError) && !!catalogue;
+  const produitsData = modeLocal ? filtrerCatalogue(catalogue, search, catFiltre) : produitsEnLigne;
+  const categories   = (!enLigne || categoriesIsError) && catalogue ? categoriesDuCatalogue(catalogue) : categoriesEnLigne;
+
   const totalHT  = panier.reduce((s, l) => s + l.quantite * l.prixUnitaire, 0);
   const totalNet = Math.max(0, totalHT - (Number(remise) || 0));
+  // Prix plancher : on compare le prix réellement payé (remise globale comprise) au minimum de chaque produit
+  const ratioRemise = totalHT > 0 ? totalNet / totalHT : 1;
+  const lignesSousPlancher = panier.filter(l => l.prixMin > 0 && Math.round(l.prixUnitaire * ratioRemise) < l.prixMin);
+  const { isAdmin } = useAuth();
+  const bloquePlancher = lignesSousPlancher.length > 0 && !isAdmin;
   const monnaie  = montantRecu ? Math.max(0, Number(montantRecu) - totalNet) : 0;
   const nbPanier = panier.reduce((s, l) => s + l.quantite, 0);
 
@@ -561,6 +649,8 @@ export default function Ventes() {
         unite:        p.unite,
         quantite:     1,
         prixUnitaire: p.prixVente,
+        prixCatalogue: p.prixVente,
+        prixMin:      p.prixMin || 0,
         stockMax:     p.quantiteStock,
       }];
     });
@@ -575,7 +665,11 @@ export default function Ventes() {
       const p = exact[0] || (liste.length === 1 ? liste[0] : null);
       if (!p) return toast.error(`Aucun produit pour le code ${code}`);
       ajouterAuPanier(p);
-    } catch {
+    } catch (e) {
+      if (!e.response && catalogue) { // pas de réseau : on cherche dans la copie locale
+        const p = catalogue.find(x => (x.reference || '').toUpperCase() === code.toUpperCase());
+        return p ? ajouterAuPanier(p) : toast.error(`Aucun produit pour le code ${code}`);
+      }
       toast.error('Lecture impossible (connexion ?)');
     }
   };
@@ -595,7 +689,8 @@ export default function Ventes() {
   };
 
   const mutation = useMutation({
-    mutationFn: (data) => api.post('/ventes', data),
+    networkMode: 'always', // sans réseau, l'envoi échoue tout de suite et la vente est gardée sur l'appareil (au lieu de rester en pause)
+    mutationFn: ({ _ctx, ...data }) => api.post('/ventes', data),
     onSuccess: (r, variables) => {
       const vente = r.data.data;
       setSuccessVente(vente);
@@ -624,11 +719,40 @@ export default function Ventes() {
       qc.invalidateQueries({ queryKey:['dashboard'] });
       qc.invalidateQueries({ queryKey:['ventes'] });
     },
-    onError: (e) => toast.error(e.response?.data?.message || 'Erreur'),
+    onError: (e, variables) => {
+      // Aucune réponse du serveur (coupure, serveur qui se réveille) : la vente est gardée sur l'appareil.
+      // La clé unique évite tout doublon si la requête était en fait arrivée.
+      if (!e.response) return enregistrerHorsLigne(variables);
+      toast.error(e.response?.data?.message || 'Erreur');
+    },
   });
+
+  const enregistrerHorsLigne = async (v) => {
+    const { _ctx, ...payload } = v;
+    try {
+      await ajouterVente({
+        cle: payload.cleUnique, creeLe: Date.now(), utilisateurId: user?._id, payload, dette: _ctx.dette,
+        etape: 'vente', statut: 'attente',
+        resume: { total: _ctx.totalNet, client: payload.client?.nom || '', nb: _ctx.lignes.length },
+      });
+      await ajusterCatalogue(payload.lignes);
+    } catch {
+      return toast.error("Impossible d'enregistrer la vente sur cet appareil (stockage plein ou bloqué)");
+    }
+    setSuccessVente({
+      horsLigne: true, numero: `HL-${payload.cleUnique.slice(-6).toUpperCase()}`, createdAt: payload.horodatage,
+      client: payload.client, lignes: _ctx.lignes, totalHT: _ctx.totalHT, remise: payload.remise, totalNet: _ctx.totalNet,
+      modePaiement: payload.modePaiement, montantRecu: payload.montantRecu, monnaie: payload.monnaie, vendeur: { nom: user?.nom },
+    });
+    setDetteAuto(_ctx.dette ? 'attente' : null);
+    setPanierOuvert(false);
+    viderPanier();
+    toast('Vente gardée sur cet appareil : envoi automatique au retour du réseau', { icon: '📴', duration: 5000 });
+  };
 
   const validerVente = () => {
     if (panier.length === 0) return toast.error('Le panier est vide');
+    if (bloquePlancher) return toast.error(`Prix trop bas pour ${lignesSousPlancher.map(l => l.nomProduit).join(', ')} : demandez à l'administrateur.`);
 
     // Champ « Reçu » laissé vide = le client a payé le total (c'est la valeur affichée en grisé).
     const recuVide = montantRecu === '';
@@ -639,7 +763,15 @@ export default function Ventes() {
       return toast.error('Paiement partiel : saisissez le nom du client pour noter le reste en dette.');
     }
 
+    const _ctx = {
+      totalHT, totalNet,
+      lignes: panier.map(l => ({ produit: l.produitId, nomProduit: l.nomProduit, unite: l.unite, quantite: l.quantite, prixUnitaire: l.prixUnitaire, sousTotal: Math.round(l.quantite * l.prixUnitaire) })),
+      dette: recu < totalNet && client.nom?.trim() ? { nom: client.nom.trim(), telephone: client.telephone || '' } : null,
+    };
     mutation.mutate({
+      _ctx,
+      cleUnique: cleVente(),
+      horodatage: new Date().toISOString(),
       client,
       remise:       Number(remise) || 0,
       modePaiement,
@@ -755,7 +887,7 @@ export default function Ventes() {
             {/* Grille produits */}
             <div className="lg:flex-1 lg:overflow-y-auto scrollbar-hide">
               {produitsIsError ? (
-                <EmptyState icon={WifiOff} title="Impossible de charger les produits" description="Vérifiez votre connexion et réessayez." />
+                <EmptyState icon={WifiOff} title="Impossible de charger les produits" description={enLigne ? "Vérifiez votre connexion et réessayez." : "Pas de réseau et aucune copie des produits sur cet appareil. Ouvrez la caisse une fois avec du réseau pour pouvoir vendre ensuite hors connexion."} />
               ) : !produitsData ? (
                 <div className="flex justify-center pt-16"><Spinner /></div>
               ) : produitsData.length === 0 ? (
@@ -807,7 +939,7 @@ export default function Ventes() {
                 </div>
               ) : (
                 panier.map(l => (
-                  <LignePanier key={l.produitId} ligne={l} onUpdate={mettreAJour} onRemove={supprimerDuPanier}/>
+                  <LignePanier key={l.produitId} ligne={l} ratio={ratioRemise} onUpdate={mettreAJour} onRemove={supprimerDuPanier}/>
                 ))
               )}
             </div>
@@ -817,10 +949,11 @@ export default function Ventes() {
               <div className="border-t border-slate-100 p-5 flex flex-col gap-4 bg-slate-50">
 
                 {/* Client */}
+                <ListeClients clients={clientsConnus} />
                 <div className="flex flex-col gap-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">👤 Client</label>
                   <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 transition-all placeholder:text-slate-400"
-                    placeholder="Nom du client" value={client.nom} onChange={e => setClient(c => ({ ...c, nom:e.target.value }))}/>
+                    placeholder="Nom du client" value={client.nom} onChange={e => changerNomClient(e.target.value)} list={ID_LISTE_CLIENTS} autoComplete="off"/>
                   <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-400 transition-all placeholder:text-slate-400"
                     placeholder="Téléphone" value={client.telephone} onChange={e => setClient(c => ({ ...c, telephone:e.target.value }))}/>
                 </div>
@@ -921,7 +1054,8 @@ export default function Ventes() {
                     <span className="font-bold text-slate-900">Total à payer</span>
                     <span className="font-syne text-xl font-bold text-indigo-600">{fmt(totalNet)} GNF</span>
                   </div>
-                  <button onClick={validerVente} disabled={mutation.isPending}
+                  {lignesSousPlancher.length > 0 && <p className={`text-xs font-semibold mb-2 ${bloquePlancher ? 'text-red-500' : 'text-amber-600'}`}>{bloquePlancher ? '⛔ Prix sous le plancher : seul l\'administrateur peut valider cette vente.' : '⚠ Vente sous le prix plancher : elle sera signalée dans le journal.'}</p>}
+                  <button onClick={validerVente} disabled={mutation.isPending || bloquePlancher}
                     className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white hover:opacity-90 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
                     {mutation.isPending
                       ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Enregistrement…</>
@@ -961,7 +1095,7 @@ export default function Ventes() {
                         <p className="text-sm">Panier vide</p>
                       </div>
                     ) : panier.map(l => (
-                      <LignePanier key={l.produitId} ligne={l} onUpdate={mettreAJour} onRemove={supprimerDuPanier}/>
+                      <LignePanier key={l.produitId} ligne={l} ratio={ratioRemise} onUpdate={mettreAJour} onRemove={supprimerDuPanier}/>
                     ))}
                   </div>
 
@@ -969,7 +1103,7 @@ export default function Ventes() {
                     <div className="border-t border-slate-100 p-5 flex flex-col gap-3 bg-slate-50">
                       <div className="flex flex-col gap-2">
                         <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 transition-all"
-                          placeholder="Nom du client" value={client.nom} onChange={e => setClient(c => ({ ...c, nom:e.target.value }))}/>
+                          placeholder="Nom du client" value={client.nom} onChange={e => changerNomClient(e.target.value)} list={ID_LISTE_CLIENTS} autoComplete="off"/>
                         <input className="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 transition-all"
                           placeholder="Téléphone" value={client.telephone} onChange={e => setClient(c => ({ ...c, telephone:e.target.value }))}/>
                       </div>
@@ -1019,7 +1153,8 @@ export default function Ventes() {
                       <span className="font-bold text-slate-900">Total</span>
                       <span className="font-syne text-xl font-bold text-indigo-600">{fmt(totalNet)} GNF</span>
                     </div>
-                    <button onClick={validerVente} disabled={mutation.isPending}
+                    {lignesSousPlancher.length > 0 && <p className={`text-xs font-semibold ${bloquePlancher ? 'text-red-500' : 'text-amber-600'}`}>{bloquePlancher ? '⛔ Prix sous le plancher : seul l\'administrateur peut valider.' : '⚠ Sous le prix plancher : vente signalée au journal.'}</p>}
+                    <button onClick={validerVente} disabled={mutation.isPending || bloquePlancher}
                       className="w-full py-4 rounded-2xl font-bold text-base gradient-brand text-white shadow-lg shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
                       {mutation.isPending
                         ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Enregistrement…</>

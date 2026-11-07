@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  HandCoins, Plus, Search, Check, WifiOff, Wallet, User, Receipt, CalendarClock, AlertTriangle, Printer,
+  HandCoins, Plus, Search, Check, WifiOff, Wallet, User, Receipt, CalendarClock, AlertTriangle, Printer, Send, MessageCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { fmt, fmtDate, inputCls } from '../../utils/format';
 import { imprimerRecuPaiement } from '../../utils/recuDette';
+import { envoyerRecuPaiement, prechargerPdf } from '../../utils/recuPdf';
+import { peutRelancer, lienRappel } from '../../utils/rappelDette';
 import Modal from '../../components/ui/Modal';
 import Table from '../../components/ui/Table';
 import EmptyState from '../../components/ui/EmptyState';
 import { CenteredSpinner } from '../../components/ui/LoadingState';
+import { useClientsConnus, telephoneConnu } from '../../utils/clients';
+import ListeClients, { ID_LISTE_CLIENTS } from '../../components/common/ListeClients';
 
 const STATUTS = [
   { id: '',        label: 'Toutes' },
@@ -51,6 +55,8 @@ function ModaleNouvelleDette({ onClose }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({ nom: '', telephone: '', montantInitial: '', dateEcheance: '' });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const clientsConnus = useClientsConnus();
+  const choisirNom = (nom) => setForm(f => ({ ...f, nom, telephone: f.telephone || telephoneConnu(clientsConnus, nom) }));
 
   const mutation = useMutation({
     mutationFn: (d) => api.post('/dettes', {
@@ -86,7 +92,8 @@ function ModaleNouvelleDette({ onClose }) {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500">Nom du client *</label>
-          <input className={inputCls} value={form.nom} onChange={e => set('nom', e.target.value)} placeholder="Ex: Mamadou Diallo"/>
+          <input className={inputCls} value={form.nom} onChange={e => choisirNom(e.target.value)} list={ID_LISTE_CLIENTS} autoComplete="off" placeholder="Ex: Mamadou Diallo"/>
+          <ListeClients clients={clientsConnus} />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500">Téléphone</label>
@@ -110,6 +117,7 @@ function ModaleNouvelleDette({ onClose }) {
 // ─── Modale : détail + encaissement d'un paiement ──────────────────────────
 function ModaleDetailDette({ dette, onClose }) {
   const qc = useQueryClient();
+  useEffect(() => { prechargerPdf(); }, []);
   const [montant, setMontant] = useState('');
   const [note, setNote] = useState('');
   const [echeance, setEcheance] = useState(versInputDate(dette.dateEcheance));
@@ -138,6 +146,12 @@ function ModaleDetailDette({ dette, onClose }) {
             <button className="font-semibold text-indigo-600 underline underline-offset-2"
               onClick={() => { toast.dismiss(t.id); imprimerRecuPaiement(maj, maj.paiements.length - 1); }}>
               Imprimer le reçu
+            </button>
+          )}
+          {maj?.paiements?.length > 0 && (
+            <button className="font-semibold text-emerald-600 underline underline-offset-2"
+              onClick={() => { toast.dismiss(t.id); envoyerRecuPaiement(maj, maj.paiements.length - 1).catch(() => toast.error('Création du PDF impossible')); }}>
+              Envoyer en PDF
             </button>
           )}
         </span>
@@ -182,6 +196,13 @@ function ModaleDetailDette({ dette, onClose }) {
             <p className="text-xs font-bold text-indigo-600 mt-1">{soldee ? 'Soldée' : 'En cours'}</p>
           </div>
         </div>
+
+        {peutRelancer(dette) && (
+          <a href={lienRappel(dette)} target="_blank" rel="noreferrer"
+            className="btn btn-secondary justify-center text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+            <MessageCircle size={15}/> Envoyer un rappel WhatsApp à {dette.client?.nom}
+          </a>
+        )}
 
         {/* Échéance */}
         <div>
@@ -229,6 +250,11 @@ function ModaleDetailDette({ dette, onClose }) {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <p className="text-[11px] text-slate-400">{fmtDate(p.date)}</p>
+                    <button type="button" title="Envoyer le reçu en PDF" aria-label="Envoyer le reçu en PDF"
+                      onClick={() => envoyerRecuPaiement(dette, i).catch(() => toast.error('Création du PDF impossible'))}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50">
+                      <Send size={14}/>
+                    </button>
                     <button type="button" title="Imprimer le reçu" aria-label="Imprimer le reçu"
                       onClick={() => imprimerRecuPaiement(dette, i)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">

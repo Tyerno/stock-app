@@ -4,14 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Package, ShoppingCart, ArrowLeftRight,
   Bell, Users, Settings, LogOut, Menu, X,
-  BarChart2, Brain, HandCoins, ClipboardCheck,
+  BarChart2, Brain, HandCoins, ClipboardCheck, Wallet, Rocket,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { memoriserBoutique } from '../../utils/boutique';
 import Horloge from './Horloge';
-import MarqueLogo from '../ui/MarqueLogo';
+import MarqueLogo, { useMarque } from '../ui/MarqueLogo';
 import BarrePWA from './BarrePWA';
+import { useMiseEnRoute } from '../../utils/miseEnRoute';
 
 const navPrincipal = [
   { to: '/',           label: 'Dashboard',   Icon: LayoutDashboard, exact: true },
@@ -20,6 +21,8 @@ const navPrincipal = [
   { to: '/mouvements', label: 'Mouvements',  Icon: ArrowLeftRight },
   { to: '/inventaire', label: 'Inventaire',  Icon: ClipboardCheck },
   { to: '/dettes',     label: 'Cahier de dettes', Icon: HandCoins },
+  { to: '/caisse',     label: 'Caisse du jour', Icon: Wallet, roles: ['admin', 'gestionnaire'] },
+  { to: '/clients',    label: 'Clients',     Icon: Users, roles: ['admin', 'gestionnaire'] },
   { to: '/alertes',    label: 'Alertes',     Icon: Bell, badge: true },
   { to: '/statistiques', label: 'Statistiques', Icon: BarChart2 },
   { to: '/previsions', label: 'Prévisions',  Icon: Brain },
@@ -31,6 +34,8 @@ const navAdmin = [
 ];
 
 function SidebarContent({ user, nav, alertesCount, onClose, onLogout }) {
+  const mer = useMiseEnRoute(); // vide pour un non-admin
+  const { nom: nomBoutique } = useMarque();
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -38,7 +43,7 @@ function SidebarContent({ user, nav, alertesCount, onClose, onLogout }) {
         <div className="flex items-center gap-2.5">
           <MarqueLogo taille={36} />
           <div>
-            <p className="font-bold text-slate-900 text-sm leading-tight">StockBTP</p>
+            <p className="font-bold text-slate-900 text-sm leading-tight truncate max-w-[9.5rem]">{nomBoutique}</p>
             <p className="text-[10px] text-slate-400">Gestion de stock</p>
           </div>
         </div>
@@ -46,7 +51,7 @@ function SidebarContent({ user, nav, alertesCount, onClose, onLogout }) {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto scrollbar-hide space-y-0.5">
-        {nav.map(({ to, label, Icon, exact, badge }) => (
+        {nav.filter((n) => !n.roles || n.roles.includes(user?.role)).map(({ to, label, Icon, exact, badge }) => (
           <NavLink key={to} to={to} end={exact}
             onClick={onClose}
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
@@ -67,6 +72,14 @@ function SidebarContent({ user, nav, alertesCount, onClose, onLogout }) {
                 Administration
               </p>
             </div>
+            {mer.total > 0 && mer.etapes.length > 0 && !mer.termine && (
+              <NavLink to="/mise-en-route" onClick={onClose}
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                <Rocket size={16} className="flex-shrink-0" />
+                <span className="flex-1">Mise en route</span>
+                <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">{mer.faites}/{mer.total}</span>
+              </NavLink>
+            )}
             {navAdmin.map(({ to, label, Icon }) => (
               <NavLink key={to} to={to} onClick={onClose}
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
@@ -189,16 +202,19 @@ function PageTitle() {
     '/mouvements':      'Mouvements de stock',
     '/inventaire':      'Inventaire',
     '/dettes':          'Cahier de dettes',
+    '/caisse':          'Caisse du jour',
+    '/clients':         'Clients',
     '/alertes':         'Alertes',
     '/statistiques':    'Statistiques',
     '/previsions':      'Prévisions IA',
     '/utilisateurs':    'Utilisateurs',
     '/parametres':      'Paramètres',
+    '/mise-en-route':   'Mise en route',
     '/mon-compte':      'Mon compte',
   };
   return (
     <h1 className="font-bold text-slate-900 text-base">
-      {titles[pathname] || 'StockBTP'}
+      {titles[pathname] || 'Gestion de stock'}
     </h1>
   );
 }

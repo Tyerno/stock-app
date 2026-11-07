@@ -1,19 +1,28 @@
 const router = require('express').Router();
 const ctrl   = require('../controllers/produitsController');
+const imp    = require('../controllers/importProduitsController');
 const { proteger, autoriser } = require('../middleware/auth');
 const Produit = require('../models/Produit');
 const { journaliser, differences, GNF } = require('../utils/journal');
 
 const CHAMPS_PRODUIT = {
-  nom: 'Nom', reference: 'Référence', unite: 'Unité', prixAchat: "Prix d'achat", prixVente: 'Prix de vente',
+  nom: 'Nom', reference: 'Référence', unite: 'Unité', prixAchat: "Prix d'achat", prixVente: 'Prix de vente', prixMin: 'Prix plancher',
   seuilAlerte: "Seuil d'alerte", quantiteMaximale: 'Stock maximum',
 };
-const chargerProduit = (req) => Produit.findById(req.params.id).select('nom reference unite prixAchat prixVente seuilAlerte quantiteMaximale').lean();
-const fmtChamp = (c, v) => (c === 'prixAchat' || c === 'prixVente') ? GNF(v) : String(v === '' ? '—' : v);
+const chargerProduit = (req) => Produit.findById(req.params.id).select('nom reference unite prixAchat prixVente prixMin seuilAlerte quantiteMaximale').lean();
+const fmtChamp = (c, v) => (c === 'prixAchat' || c === 'prixVente' || c === 'prixMin') ? GNF(v) : String(v === '' ? '—' : v);
 
 router.use(proteger);
 
 router.get('/',                   ctrl.getProduits);
+// Import en masse (doit rester AVANT '/:id'). Accepte un corps plus gros que le reste de l'API.
+router.post('/import/apercu',     autoriser('admin','gestionnaire'), imp.apercu);
+router.post('/import',            autoriser('admin','gestionnaire'),
+  journaliser({ action:'produits_importes', entite:'produit', decrire:({ body }) => ({
+    libelle: `Import de produits : ${body.data?.crees ?? 0} créé(s), ${body.data?.misAJour ?? 0} mis à jour, ${body.data?.ignores ?? 0} ignoré(s), ${body.data?.erreurs ?? 0} en erreur`,
+    details: body.data,
+  }) }),
+  imp.importer);
 router.get('/:id',                ctrl.getProduit);
 router.post('/',                  autoriser('admin','gestionnaire'),
   journaliser({ action:'produit_cree', entite:'produit', decrire:({ body }) => ({

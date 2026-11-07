@@ -13,6 +13,9 @@ const MODELES = () => ({
   journal:     require('../models/Journal'),
   bonsCommande: require('../models/BonCommande'),
   inventaires: require('../models/Inventaire'),
+  depenses:    require('../models/Depense'),
+  clotures:    require('../models/Cloture'),
+  retours:     require('../models/Retour'),
 });
 
 const { EJSON } = mongoose.mongo.BSON;
@@ -61,5 +64,39 @@ exports.telecharger = async (req, res) => {
   } catch (err) {
     console.error('❌ Sauvegarde :', err.message);
     res.status(500).json({ success: false, message: 'Sauvegarde impossible pour le moment' });
+  }
+};
+
+// POST /api/sauvegarde/remise-a-zero : vide les données de la boutique (démo → mise en service réelle).
+// Conserve les comptes utilisateurs. Réservé à l'admin ; exige son mot de passe et la phrase de confirmation.
+exports.remiseAZero = async (req, res) => {
+  try {
+    const { confirmation, motDePasse, boutique = true } = req.body || {};
+    if (confirmation !== 'REMETTRE A ZERO') {
+      return res.status(400).json({ success: false, message: 'Phrase de confirmation incorrecte.' });
+    }
+    const { User } = require('../models');
+    const admin = await User.findById(req.user._id).select('+motDePasse');
+    if (!admin || typeof motDePasse !== 'string' || !(await admin.verifierMotDePasse(motDePasse))) {
+      return res.status(403).json({ success: false, message: 'Mot de passe incorrect.' });
+    }
+
+    const m = MODELES();
+    const aVider = ['produits', 'categories', 'ventes', 'mouvements', 'dettes', 'bonsCommande', 'inventaires', 'depenses', 'clotures', 'retours', 'journal'];
+    if (boutique !== false) aVider.push('boutique');
+    const supprimes = {};
+    for (const nom of aVider) supprimes[nom] = (await m[nom].deleteMany({})).deletedCount || 0;
+
+    const total = Object.values(supprimes).reduce((s, n) => s + n, 0);
+    console.log(`🧹 Remise à zéro par ${req.user.email} (${total} éléments supprimés)`);
+    // Le journal vient d'être vidé : cette trace en est la première entrée.
+    await tracer({
+      req, action: 'remise_a_zero', entite: 'systeme',
+      libelle: `Remise à zéro des données (${total} éléments supprimés${boutique !== false ? ', infos boutique comprises' : ''})`,
+    });
+    res.json({ success: true, data: supprimes, message: 'Données remises à zéro.' });
+  } catch (err) {
+    console.error('❌ Remise à zéro :', err.message);
+    res.status(500).json({ success: false, message: 'Remise à zéro impossible pour le moment' });
   }
 };
