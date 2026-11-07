@@ -30,14 +30,28 @@ async function appelBrevo(chemin, options = {}) {
   return rep;
 }
 
+// Les modèles d'e-mail portent « StockBTP » par défaut : on le remplace par le nom de la boutique.
+async function marque() {
+  try {
+    const b = await Boutique.findOne().select('nom').lean();
+    if (b?.nom) return b.nom;
+  } catch { /* base indisponible */ }
+  return 'Ma boutique';
+}
+const echapper = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 const transporter = {
   async sendMail({ from, to, subject, html }) {
+    const nom = await marque();
+    from = String(from).replace(/StockBTP/g, nom.replace(/["<>]/g, ''));
+    subject = String(subject).replace(/StockBTP/g, nom);
+    html = String(html).replace(/StockBTP/g, echapper(nom));
     if (!modeApi()) return smtp.sendMail({ from, to, subject, html });
     const m = /^"?(.*?)"?\s*<(.+)>$/.exec(String(from));
     await appelBrevo('/smtp/email', {
       method: 'POST',
       body: JSON.stringify({
-        sender: { name: m ? m[1] : 'StockBTP', email: m ? m[2] : process.env.EMAIL_USER },
+        sender: { name: m ? m[1] : 'Ma boutique', email: m ? m[2] : process.env.EMAIL_USER },
         to: [{ email: to }],
         subject,
         htmlContent: html,

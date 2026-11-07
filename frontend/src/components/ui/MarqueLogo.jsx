@@ -6,7 +6,7 @@ import { lireLogoLocal, memoriserLogo } from '../../utils/boutique';
 
 // Logo de la boutique : lecture publique (la page de connexion en a besoin avant l'authentification).
 // Pendant le chargement, ou si le serveur ne répond pas, on affiche la copie gardée sur l'appareil.
-export function useLogoBoutique() {
+export function useMarque() {
   const { data } = useQuery({
     queryKey: ['boutique-public'],
     queryFn:  () => api.get('/boutique/public').then(r => r.data.data),
@@ -14,10 +14,19 @@ export function useLogoBoutique() {
     retry: false,
   });
   useEffect(() => { if (data) memoriserLogo(data.logo); }, [data]);
-  return data ? (data.logo || '') : lireLogoLocal();
+  let nomLocal = '';
+  try { nomLocal = localStorage.getItem('boutique_nom') || ''; } catch { /* stockage indisponible */ }
+  const nom = data?.nom || nomLocal || 'Ma boutique';
+  // Nom de l'onglet du navigateur = nom de la boutique
+  useEffect(() => { document.title = `${nom} — Gestion de stock`; }, [nom]);
+  return { nom, logo: data ? (data.logo || '') : lireLogoLocal() };
 }
 
-// Affiche le logo de la boutique, ou l'éclair StockBTP tant qu'aucun logo n'est défini.
+export function useLogoBoutique() {
+  return useMarque().logo;
+}
+
+// Affiche le logo de la boutique, ou l'éclair tant qu'aucun logo n'est défini.
 export default function MarqueLogo({ taille = 36, rond = 'rounded-xl', className = '' }) {
   const logo = useLogoBoutique();
   const dimension = { width: taille, height: taille };

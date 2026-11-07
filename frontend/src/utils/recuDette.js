@@ -17,7 +17,7 @@ export function imprimerRecuPaiement(dette, index) {
   const reste       = Math.max(dette.montantInitial - apres, 0);
   const numero      = `P-${String(dette._id).slice(-6).toUpperCase()}-${index + 1}`;
 
-  const nomBoutique = localStorage.getItem('boutique_nom')       || 'StockBTP';
+  const nomBoutique = localStorage.getItem('boutique_nom')       || 'Ma boutique';
   const adresse     = localStorage.getItem('boutique_adresse')   || 'Conakry, Guinée';
   const telephone   = localStorage.getItem('boutique_telephone') || '';
   const logoHtml    = logoRecuHtml();

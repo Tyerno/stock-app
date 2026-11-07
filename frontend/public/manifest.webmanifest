@@ -1,6 +1,6 @@
 {
-  "name": "StockBTP — Gestion de stock",
-  "short_name": "StockBTP",
+  "name": "Gestion de stock",
+  "short_name": "Stock",
   "description": "Gestion de stock et de ventes pour matériaux de construction",
   "lang": "fr",
   "start_url": "/?source=pwa",

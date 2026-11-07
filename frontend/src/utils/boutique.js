@@ -3,7 +3,7 @@
 // chargement de l'application et à chaque sauvegarde dans Paramètres.
 export const CHAMPS_BOUTIQUE = ['nom', 'adresse', 'telephone', 'email', 'devise', 'ville', 'pays'];
 
-export const DEFAUTS_BOUTIQUE = { nom: 'StockBTP', adresse: '', telephone: '', email: '', devise: 'GNF', ville: 'Conakry', pays: 'Guinée' };
+export const DEFAUTS_BOUTIQUE = { nom: 'Ma boutique', adresse: '', telephone: '', email: '', devise: 'GNF', ville: 'Conakry', pays: 'Guinée' };
 
 export function lireBoutiqueLocale() {
   const o = {};

@@ -32,7 +32,7 @@ const publier = (doc) => ({
 exports.getMarque = async (req, res) => {
   try {
     const doc = await Boutique.findOne().select('nom logo').lean();
-    res.json({ success: true, data: { nom: doc?.nom || 'StockBTP', logo: doc?.logo || '' } });
+    res.json({ success: true, data: { nom: doc?.nom || 'Ma boutique', logo: doc?.logo || '' } });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
