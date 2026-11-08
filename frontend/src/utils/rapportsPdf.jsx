@@ -1,10 +1,12 @@
-// Rapport du jour et clôture de caisse en PDF (format ticket), à envoyer par WhatsApp comme les reçus.
+// Rapport du jour, clôture de caisse, bon de commande et rappel de dette en PDF (format ticket), à envoyer par WhatsApp comme les reçus.
 import { fmt } from './format';
+import { messageRappel } from './rappelDette';
 import { lireBoutiqueLocale } from './boutique';
 import { libelleMode, evolution } from './rapportJour';
 import { attendues, jourLong } from './caisse';
 import { creerPdf, entete, envoyerPdf } from './recuPdf';
 
+const jourCourt = (d, utc = true) => new Date(d).toLocaleDateString('fr-FR', utc ? { timeZone: 'UTC' } : undefined);
 const GNF = (n) => `${fmt(n)} GNF`;
 const ROUGE = [200, 30, 30];
 const VERT = [16, 150, 90];
@@ -116,4 +118,103 @@ export async function envoyerCaisse(k, options) {
   const blob = await pdfCaisse(k, options);
   const message = `Clôture de caisse - ${b.nom} - ${jourLong(k.jour)} : ${k.ventes.nb} vente(s), ${GNF(k.ventes.ca)}.`;
   return envoyerPdf({ blob, nomFichier: `cloture-caisse-${k.jour}.pdf`, message });
+}
+
+// ─── Bon de commande (fournisseur) ────────────────────────────────────────────
+export async function pdfBonCommande(bon) {
+  const b = lireBoutiqueLocale();
+  return creerPdf((c) => {
+    entete(b, 'BON DE COMMANDE', bon.numero)(c);
+    c.ligne('Date', jourCourt(bon.createdAt, false));
+    c.ligne('Fournisseur', bon.fournisseur?.nom || '', { gras: true });
+    if (bon.fournisseur?.contact) c.ligne('Contact', bon.fournisseur.contact);
+    c.sep();
+    for (const l of bon.lignes) {
+      c.texte(l.nomProduit, { taille: 8.5, gras: true, gap: 0.2 });
+      c.ligne(`${fmt(l.quantite)} ${l.unite || ''} x ${fmt(l.prixUnitaire)}`.replace(/\s+/g, ' '), fmt(l.sousTotal), { taille: 8 });
+    }
+    c.sep(true);
+    c.ligne('TOTAL', GNF(bon.total), { taille: 11, gras: true, couleurG: 20 });
+    if (bon.note) { c.sep(); c.texte(`Note : ${bon.note}`, { taille: 7.5, couleur: 90, gap: 0.3 }); }
+    c.sep();
+    c.texte('Merci de confirmer la disponibilité et le délai de livraison.', { taille: 8, gras: true, align: 'center', gap: 0.4 });
+  });
+}
+
+export async function envoyerBonCommande(bon) {
+  const b = lireBoutiqueLocale();
+  const blob = await pdfBonCommande(bon);
+  const message = `Bonjour ${bon.fournisseur?.nom || ''}, voici notre bon de commande ${bon.numero} de ${b.nom} : ${GNF(bon.total)}. Merci de confirmer la disponibilité et le délai de livraison.`;
+  return envoyerPdf({ blob, nomFichier: `bon-commande-${bon.numero}.pdf`, message, telephone: bon.fournisseur?.contact });
+}
+
+// ─── Rappel de dette (client) ─────────────────────────────────────────────────
+export async function pdfRappelDette(dette) {
+  const b = lireBoutiqueLocale();
+  const verse = Math.max(0, (dette.montantInitial || 0) - (dette.montantRestant || 0));
+  const debut = new Date(); debut.setUTCHours(0, 0, 0, 0);
+  const echeance = dette.dateEcheance ? new Date(dette.dateEcheance) : null;
+  const depasse = echeance && echeance < debut;
+  const paiements = (dette.paiements || []).slice(-8);
+  return creerPdf((c) => {
+    entete(b, 'RAPPEL DE PAIEMENT', null)(c);
+    c.ligne('Date', jourCourt(new Date(), false));
+    c.ligne('Client', dette.client?.nom || '', { gras: true });
+    if (dette.client?.telephone) c.ligne('Tél', dette.client.telephone);
+    c.sep();
+    c.ligne('Montant de la dette', GNF(dette.montantInitial));
+    c.ligne('Déjà versé', GNF(verse));
+    if (paiements.length) {
+      paiements.forEach((p) => c.ligne(`  ${jourCourt(p.date)}`, GNF(p.montant), { taille: 7.5 }));
+    }
+    c.sep(true);
+    c.ligne('RESTE À PAYER', GNF(dette.montantRestant), { taille: 11, gras: true, couleurG: 20, couleurD: ROUGE });
+    if (echeance) {
+      c.ligne('Échéance', jourCourt(echeance), { couleurD: depasse ? ROUGE : 20, gras: !!depasse });
+      if (depasse) c.texte('Échéance dépassée', { taille: 8, gras: true, couleur: ROUGE, align: 'center', gap: 0.4 });
+    }
+    c.sep();
+    c.texte('Vous pouvez passer à la boutique' + (b.telephone ? ` ou nous appeler au ${b.telephone}` : '') + '.', { taille: 8, align: 'center', gap: 0.4 });
+    c.texte('Merci de votre confiance !', { taille: 9, gras: true, align: 'center', gap: 0 });
+  });
+}
+
+export async function envoyerRappelDette(dette) {
+  const blob = await pdfRappelDette(dette);
+  const nom = String(dette.client?.nom || 'client').normalize('NFD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+  return envoyerPdf({ blob, nomFichier: `rappel-${nom}.pdf`, message: messageRappel(dette), telephone: dette.client?.telephone });
+}
+
+// ─── Devis (client) ───────────────────────────────────────────────────────────
+export async function pdfDevis(devis) {
+  const b = lireBoutiqueLocale();
+  return creerPdf((c) => {
+    entete(b, 'DEVIS', devis.numero)(c);
+    c.ligne('Date', jourCourt(devis.createdAt, false));
+    c.ligne('Client', devis.client?.nom || '', { gras: true });
+    if (devis.client?.telephone) c.ligne('Tél', devis.client.telephone);
+    c.sep();
+    for (const l of devis.lignes) {
+      c.texte(l.nomProduit, { taille: 8.5, gras: true, gap: 0.2 });
+      c.ligne(`${fmt(l.quantite)} ${l.unite || ''} x ${fmt(l.prixUnitaire)}`.replace(/\s+/g, ' '), fmt(l.sousTotal), { taille: 8 });
+    }
+    c.sep();
+    if (devis.remise > 0) {
+      c.ligne('Sous-total', GNF(devis.totalHT));
+      c.ligne('Remise', `- ${GNF(devis.remise)}`, { couleurD: ROUGE });
+    }
+    c.sep(true);
+    c.ligne('TOTAL', GNF(devis.totalNet), { taille: 11, gras: true, couleurG: 20 });
+    if (devis.note) { c.sep(); c.texte(`Note : ${devis.note}`, { taille: 7.5, couleur: 90, gap: 0.3 }); }
+    c.sep();
+    c.texte(`Devis valable jusqu'au ${jourCourt(devis.dateValidite)}`, { taille: 8, gras: true, align: 'center', gap: 0.4 });
+    c.texte("Ce devis n'est pas une facture", { taille: 7, couleur: 120, align: 'center', gap: 0 });
+  });
+}
+
+export async function envoyerDevis(devis) {
+  const b = lireBoutiqueLocale();
+  const blob = await pdfDevis(devis);
+  const message = `Bonjour ${devis.client?.nom || ''}, voici votre devis ${devis.numero} de ${b.nom} : ${GNF(devis.totalNet)}, valable jusqu'au ${jourCourt(devis.dateValidite)}. Merci de votre confiance !`;
+  return envoyerPdf({ blob, nomFichier: `devis-${devis.numero}.pdf`, message, telephone: devis.client?.telephone });
 }

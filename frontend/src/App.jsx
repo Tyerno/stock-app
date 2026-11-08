@@ -15,6 +15,7 @@ import Connexion from './pages/auth/Connexion';
 const Dashboard     = lazy(() => import('./pages/dashboard/Dashboard'));
 const Produits      = lazy(() => import('./pages/produits/Produits'));
 const Ventes         = lazy(() => import('./pages/ventes/Ventes'));
+const Devis          = lazy(() => import('./pages/devis/Devis'));
 const Mouvements     = lazy(() => import('./pages/mouvements/Mouvements'));
 const Alertes        = lazy(() => import('./pages/alertes/Alertes'));
 const Utilisateurs   = lazy(() => import('./pages/utilisateurs/Utilisateurs'));
@@ -72,6 +73,11 @@ function AppRoutes() {
         <Route path="caisse" element={
           <ProtectedRoute roles={['admin', 'gestionnaire']}>
             <Caisse />
+          </ProtectedRoute>
+        } />
+        <Route path="devis" element={
+          <ProtectedRoute roles={['admin', 'gestionnaire']}>
+            <Devis />
           </ProtectedRoute>
         } />
         <Route path="clients" element={

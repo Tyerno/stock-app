@@ -410,7 +410,7 @@ function FormulairePreferences({ initial, qc }) {
 
 // ─── Sauvegarde complète (administrateur) ─────────────────────────────────────
 const CLE_SAUVEGARDE = 'derniere_sauvegarde';
-const NOMS_COLLECTIONS = { produits:'produits', categories:'catégories', ventes:'ventes', mouvements:'mouvements', dettes:'dettes', depenses:'dépenses', retours:'retours', clotures:'clôtures', utilisateurs:'utilisateurs' };
+const NOMS_COLLECTIONS = { produits:'produits', categories:'catégories', ventes:'ventes', mouvements:'mouvements', dettes:'dettes', depenses:'dépenses', retours:'retours', devis:'devis', clotures:'clôtures', utilisateurs:'utilisateurs' };
 
 function lireDerniereSauvegarde() {
   try { const v = localStorage.getItem(CLE_SAUVEGARDE); return v ? new Date(v) : null; } catch { return null; }

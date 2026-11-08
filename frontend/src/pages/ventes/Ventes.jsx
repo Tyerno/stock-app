@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, ShoppingCart, Printer, X, CheckCircle,
   Plus, Minus, Trash2, Tag, CreditCard, Smartphone,
-  Layers, Receipt, Package, Zap, HandCoins, Check, Wallet, WifiOff
+  Layers, Receipt, Package, Zap, HandCoins, Check, Wallet, WifiOff, FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -585,6 +586,39 @@ export default function Ventes() {
   const [detteAuto, setDetteAuto] = useState(null); // null | 'encours' | 'ok' | 'erreur'
   const [onglet, setOnglet]             = useState('caisse');
   const [panierOuvert, setPanierOuvert] = useState(false); // mobile
+
+  // Devis transformé en vente : la page Devis envoie les lignes (avec le stock et les prix planchers du jour) ; on remplit le panier.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [devisLie, setDevisLie] = useState(null);
+  useEffect(() => {
+    const d = location.state?.devisPanier;
+    if (!d) return;
+    navigate(location.pathname, { replace: true, state: null });
+    const retirees = [], reduites = [], lignes = [];
+    let htAvant = 0, htApres = 0;
+    d.lignes.forEach((l) => {
+      htAvant += l.quantite * l.prixUnitaire;
+      if (!l.disponible || l.stockMax <= 0) { retirees.push(l.nomProduit); return; }
+      const q = Math.min(l.quantite, l.stockMax);
+      if (q < l.quantite) reduites.push(`${l.nomProduit} (${q} sur ${l.quantite})`);
+      htApres += q * l.prixUnitaire;
+      lignes.push({ produitId: l.produitId, nomProduit: l.nomProduit, unite: l.unite, quantite: q, prixUnitaire: l.prixUnitaire,
+        prixCatalogue: l.prixCatalogue, prixMin: l.prixMin, stockMax: l.stockMax });
+    });
+    if (retirees.length) toast.error(`Retiré (archivé ou en rupture) : ${retirees.join(', ')}`, { duration: 8000 });
+    if (reduites.length) toast(`Quantité réduite au stock disponible : ${reduites.join(', ')}`, { icon: '⚠️', duration: 8000 });
+    if (!lignes.length) return toast.error("Aucun produit de ce devis n'est disponible en stock");
+    setPanier(lignes);
+    setClient({ nom: d.client?.nom || '', telephone: d.client?.telephone || '' });
+    setMontantRecu('');
+    const rem = htAvant > 0 ? Math.round((d.remise || 0) * htApres / htAvant) : 0;
+    setRemise(rem > 0 ? String(rem) : '');
+    setDevisLie({ id: d._id, numero: d.numero });
+    setPanierOuvert(true);
+    toast.success(`Devis ${d.numero} chargé dans le panier`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
   const [scanOuvert, setScanOuvert]     = useState(false);
 
   const { data: produitsEnLigne, isError: produitsIsError } = useQuery({
@@ -686,6 +720,7 @@ export default function Ventes() {
     setClient({ nom:'', telephone:'' });
     setMontantRecu('');
     setRemise('');
+    setDevisLie(null);
   };
 
   const mutation = useMutation({
@@ -693,6 +728,10 @@ export default function Ventes() {
     mutationFn: ({ _ctx, ...data }) => api.post('/ventes', data),
     onSuccess: (r, variables) => {
       const vente = r.data.data;
+      const devisId = variables?._ctx?.devisId;
+      if (devisId) { // la vente vient d'un devis : il passe à « converti » (lien vers la vente)
+        api.post(`/devis/${devisId}/converti`, { venteId: vente._id }).then(() => qc.invalidateQueries({ queryKey: ['devis'] })).catch(() => {});
+      }
       setSuccessVente(vente);
       setDetteAuto(null);
       setPanierOuvert(false);
@@ -767,6 +806,7 @@ export default function Ventes() {
       totalHT, totalNet,
       lignes: panier.map(l => ({ produit: l.produitId, nomProduit: l.nomProduit, unite: l.unite, quantite: l.quantite, prixUnitaire: l.prixUnitaire, sousTotal: Math.round(l.quantite * l.prixUnitaire) })),
       dette: recu < totalNet && client.nom?.trim() ? { nom: client.nom.trim(), telephone: client.telephone || '' } : null,
+      devisId: devisLie?.id,
     };
     mutation.mutate({
       _ctx,
@@ -784,6 +824,13 @@ export default function Ventes() {
       })),
     });
   };
+
+  const bandeauDevis = devisLie && (
+    <div className="mx-5 mt-3 flex items-center justify-between gap-2 rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2 text-xs font-semibold text-indigo-700">
+      <span className="inline-flex items-center gap-1.5 min-w-0 truncate"><FileText size={13}/> Devis {devisLie.numero}</span>
+      <button onClick={() => setDevisLie(null)} className="text-indigo-400 hover:text-indigo-700" aria-label="Détacher le devis"><X size={13}/></button>
+    </div>
+  );
 
   // Suggestions montant
   const suggestions = [
@@ -928,6 +975,8 @@ export default function Ventes() {
                 </button>
               )}
             </div>
+
+            {bandeauDevis}
 
             {/* Zone qui défile : articles + infos de paiement */}
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
@@ -1085,6 +1134,8 @@ export default function Ventes() {
                     <X size={16}/>
                   </button>
                 </div>
+
+                {bandeauDevis}
 
                 {/* Zone qui défile : articles + infos de paiement */}
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">

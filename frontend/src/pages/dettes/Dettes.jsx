@@ -8,7 +8,8 @@ import api from '../../utils/api';
 import { fmt, fmtDate, inputCls } from '../../utils/format';
 import { imprimerRecuPaiement } from '../../utils/recuDette';
 import { envoyerRecuPaiement, prechargerPdf } from '../../utils/recuPdf';
-import { peutRelancer, lienRappel } from '../../utils/rappelDette';
+import { peutRelancer } from '../../utils/rappelDette';
+import { envoyerRappelDette } from '../../utils/rapportsPdf';
 import Modal from '../../components/ui/Modal';
 import Table from '../../components/ui/Table';
 import EmptyState from '../../components/ui/EmptyState';
@@ -198,10 +199,11 @@ function ModaleDetailDette({ dette, onClose }) {
         </div>
 
         {peutRelancer(dette) && (
-          <a href={lienRappel(dette)} target="_blank" rel="noreferrer"
+          <button onMouseEnter={prechargerPdf} onTouchStart={prechargerPdf}
+            onClick={() => envoyerRappelDette(dette).catch(() => toast.error('Création du PDF impossible'))}
             className="btn btn-secondary justify-center text-emerald-700 border-emerald-200 hover:bg-emerald-50">
-            <MessageCircle size={15}/> Envoyer un rappel WhatsApp à {dette.client?.nom}
-          </a>
+            <MessageCircle size={15}/> Envoyer un rappel en PDF à {dette.client?.nom}
+          </button>
         )}
 
         {/* Échéance */}

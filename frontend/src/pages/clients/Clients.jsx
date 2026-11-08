@@ -5,7 +5,8 @@ import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { fmt, fmtDate } from '../../utils/format';
 import { numeroWhatsApp } from '../../utils/bonCommande';
-import { lienRappel, peutRelancer } from '../../utils/rappelDette';
+import { peutRelancer } from '../../utils/rappelDette';
+import { envoyerRappelDette } from '../../utils/rapportsPdf';
 import { envoyerRecuVente, prechargerPdf } from '../../utils/recuPdf';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
@@ -82,7 +83,7 @@ function ModaleFiche({ client, onClose }) {
                         </p>
                       </div>
                       {peutRelancer(d) && (
-                        <a href={lienRappel(d)} target="_blank" rel="noreferrer" className="btn btn-secondary text-xs whitespace-nowrap"><MessageCircle size={13} /> Rappeler</a>
+                        <button onMouseEnter={prechargerPdf} onTouchStart={prechargerPdf} onClick={() => envoyerRappelDette(d).catch(() => toast.error('Création du PDF impossible'))} className="btn btn-secondary text-xs whitespace-nowrap"><MessageCircle size={13} /> Rappeler</button>
                       )}
                     </div>
                   );

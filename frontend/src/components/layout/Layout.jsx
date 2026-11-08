@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Package, ShoppingCart, ArrowLeftRight,
   Bell, Users, Settings, LogOut, Menu, X,
-  BarChart2, Brain, HandCoins, ClipboardCheck, Wallet, Rocket,
+  BarChart2, Brain, HandCoins, ClipboardCheck, Wallet, Rocket, FileText,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -18,6 +18,7 @@ const navPrincipal = [
   { to: '/',           label: 'Dashboard',   Icon: LayoutDashboard, exact: true },
   { to: '/produits',   label: 'Produits',    Icon: Package },
   { to: '/ventes',     label: 'Ventes',      Icon: ShoppingCart },
+  { to: '/devis',      label: 'Devis',       Icon: FileText, roles: ['admin', 'gestionnaire'] },
   { to: '/mouvements', label: 'Mouvements',  Icon: ArrowLeftRight },
   { to: '/inventaire', label: 'Inventaire',  Icon: ClipboardCheck },
   { to: '/dettes',     label: 'Cahier de dettes', Icon: HandCoins },
@@ -199,6 +200,7 @@ function PageTitle() {
     '/':                'Dashboard',
     '/produits':        'Produits',
     '/ventes':          'Ventes',
+    '/devis':           'Devis',
     '/mouvements':      'Mouvements de stock',
     '/inventaire':      'Inventaire',
     '/dettes':          'Cahier de dettes',

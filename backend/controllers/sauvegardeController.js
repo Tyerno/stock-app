@@ -16,6 +16,7 @@ const MODELES = () => ({
   depenses:    require('../models/Depense'),
   clotures:    require('../models/Cloture'),
   retours:     require('../models/Retour'),
+  devis:       require('../models/Devis'),
 });
 
 const { EJSON } = mongoose.mongo.BSON;
@@ -82,7 +83,7 @@ exports.remiseAZero = async (req, res) => {
     }
 
     const m = MODELES();
-    const aVider = ['produits', 'categories', 'ventes', 'mouvements', 'dettes', 'bonsCommande', 'inventaires', 'depenses', 'clotures', 'retours', 'journal'];
+    const aVider = ['produits', 'categories', 'ventes', 'mouvements', 'dettes', 'bonsCommande', 'inventaires', 'depenses', 'clotures', 'retours', 'devis', 'journal'];
     if (boutique !== false) aVider.push('boutique');
     const supprimes = {};
     for (const nom of aVider) supprimes[nom] = (await m[nom].deleteMany({})).deletedCount || 0;

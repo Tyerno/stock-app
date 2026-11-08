@@ -101,6 +101,7 @@ app.use('/api/rapport',        require('./routes/rapport'));
 app.use('/api/caisse',         require('./routes/caisse'));
 app.use('/api/clients',        require('./routes/clients'));
 app.use('/api/retours',        require('./routes/retours'));
+app.use('/api/devis',          require('./routes/devis'));
 app.use('/api/mise-en-route',  require('./routes/miseEnRoute'));
 
 // ─── Santé ────────────────────────────────────────────────────────────────────

@@ -74,7 +74,10 @@ export async function creerPdf(ticket) {
   }
   const essai = new jsPDF({ unit: 'mm', format: [L, 400] });
   const hauteur = dessiner(essai, ticket, logo) + M;
-  const doc = new jsPDF({ unit: 'mm', format: [L, Math.max(60, hauteur)] });
+  // jsPDF remet en « portrait » (largeur < hauteur) un format dont la hauteur est inférieure à la largeur : un ticket
+  // court (moins de 80 mm) serait alors tourné et coupé à droite. On demande donc « paysage » pour les tickets courts.
+  const h = Math.max(30, hauteur);
+  const doc = new jsPDF({ unit: 'mm', orientation: h > L ? 'p' : 'l', format: [L, h] });
   dessiner(doc, ticket, logo);
   return doc.output('blob');
 }

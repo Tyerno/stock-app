@@ -7,7 +7,9 @@ import { fmt, inputCls } from '../../utils/format';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { CenteredSpinner } from '../../components/ui/LoadingState';
-import { STATUT_BON, imprimerBon, lienWhatsApp } from '../../utils/bonCommande';
+import { STATUT_BON, imprimerBon } from '../../utils/bonCommande';
+import { envoyerBonCommande } from '../../utils/rapportsPdf';
+import { prechargerPdf } from '../../utils/recuPdf';
 
 const nb = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n ?? 0);
 const dateCourte = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -137,6 +139,11 @@ export function ModalBon({ bonInitial, peutEcrire, onClose }) {
   const actualiser = useActualiser();
   const [bon, setBon] = useState(bonInitial);
   const [reception, setReception] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
+  const envoyerPdf = async () => {
+    setEnvoi(true);
+    try { await envoyerBonCommande(bon); } catch { toast.error('Création du PDF impossible'); } finally { setEnvoi(false); }
+  };
   const st = STATUT_BON[bon.statut] || STATUT_BON.brouillon;
 
   const statut = useMutation({
@@ -180,7 +187,7 @@ export function ModalBon({ bonInitial, peutEcrire, onClose }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button className="btn-secondary justify-center" onClick={imprimer}><Printer size={15} /> Imprimer / PDF</button>
-            <a className="btn justify-center bg-emerald-500 text-white hover:bg-emerald-600" href={lienWhatsApp(bon)} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} /> Envoyer par WhatsApp</a>
+            <button className="btn justify-center bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-60" disabled={envoi} onMouseEnter={prechargerPdf} onTouchStart={prechargerPdf} onClick={envoyerPdf}><MessageCircle size={15} /> {envoi ? 'Préparation du PDF…' : 'Envoyer en PDF par WhatsApp'}</button>
             {peutEcrire && bon.statut === 'brouillon' && (
               <button className="btn justify-center bg-indigo-50 text-indigo-700 hover:bg-indigo-100" disabled={statut.isPending} onClick={() => statut.mutate('envoye')}><Send size={15} /> Marquer comme envoyé</button>
             )}

@@ -24,6 +24,7 @@ const COLLECTIONS = {
   depenses:     require('../models/Depense').collection.name,
   clotures:     require('../models/Cloture').collection.name,
   retours:      require('../models/Retour').collection.name,
+  devis: require('../models/Devis').collection.name,
 };
 
 async function restaurer() {
