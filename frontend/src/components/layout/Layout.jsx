@@ -12,6 +12,7 @@ import { memoriserBoutique } from '../../utils/boutique';
 import Horloge from './Horloge';
 import MarqueLogo, { useMarque } from '../ui/MarqueLogo';
 import BarrePWA from './BarrePWA';
+import BoutonTheme from '../ui/BoutonTheme';
 import { useMiseEnRoute } from '../../utils/miseEnRoute';
 
 const navPrincipal = [
@@ -139,7 +140,7 @@ export default function Layout() {
   const sidebarProps = { user, nav: navPrincipal, alertesCount, onLogout: handleLogout };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 page-bg">
       {/* Sidebar desktop */}
       <aside className="hidden lg:flex w-56 flex-col bg-white border-r border-slate-100 flex-shrink-0">
         <SidebarContent {...sidebarProps} onClose={() => {}} />
@@ -170,6 +171,7 @@ export default function Layout() {
           <PageTitle />
           <div className="ml-auto flex items-center gap-2">
             <Horloge />
+            <BoutonTheme />
             {alertesCount > 0 && (
               <NavLink to="/alertes" className="relative btn-icon text-slate-500">
                 <Bell size={18} />

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import './theme-sombre.css';
 import { enregistrerSW } from './utils/pwa';
 
 // Réveille le serveur (hébergement gratuit : il s'endort après 15 min) dès l'ouverture de l'app,

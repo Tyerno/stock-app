@@ -8,6 +8,20 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Stock" />
+    <!-- Thème sombre appliqué avant l'affichage, pour éviter un flash blanc au chargement -->
+    <style>html.dark { background: #0b1020; color-scheme: dark; }</style>
+    <script>
+      (function () {
+        try {
+          var c = localStorage.getItem('stockbtp_theme');
+          var sombre = c ? c === 'sombre' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (sombre) {
+            document.documentElement.classList.add('dark');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0b1020');
+          }
+        } catch (e) { /* thème clair par défaut */ }
+      })();
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />

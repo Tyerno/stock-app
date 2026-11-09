@@ -119,7 +119,7 @@ export default function App() {
         <BrowserRouter>
           <AppRoutes />
           <Toaster position="top-right" toastOptions={{
-            style: { borderRadius: '12px', fontSize: '14px', fontWeight: 500 },
+            style: { borderRadius: '12px', fontSize: '14px', fontWeight: 500, background: 'var(--toast-bg)', color: 'var(--toast-fg)' },
             success: { style: { background: '#10b981', color: 'white' } },
             error:   { style: { background: '#ef4444', color: 'white' } },
           }} />
